@@ -115,10 +115,26 @@ const AdminRepository = {
     
     let processedCount = 0;
     const now = new Date();
-    // Use the timezone from config for formatting if needed, but Date object is fine for Sheets
     const formattedDate = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd HH:mm:ss");
 
     const failedIds = [];
+    const statusA1List = [];
+    const dateA1List = [];
+    
+    // Helper to convert 0-based index to A, B, C...
+    const getColLetter = (idx) => {
+      let letter = '';
+      let col = idx + 1;
+      while (col > 0) {
+        let temp = (col - 1) % 26;
+        letter = String.fromCharCode(temp + 65) + letter;
+        col = (col - temp - 1) / 26;
+      }
+      return letter;
+    };
+    
+    const statusCol = getColLetter(idxStatus);
+    const dateCol = getColLetter(idxApproveDatetime);
 
     // Process each requested ID
     for (const txId of transactionIds) {
@@ -128,9 +144,8 @@ const AdminRepository = {
         
         // Double-check: Must still be PENDING and belong to this approver
         if (row[idxStatus] === 'PENDING' && row[idxApprover] === approverName) {
-          // Modify the array in memory
-          data[rowIndex][idxStatus] = newStatus; // e.g., 'APPROVED' or 'REJECTED'
-          data[rowIndex][idxApproveDatetime] = formattedDate;
+          statusA1List.push(statusCol + (rowIndex + 1));
+          dateA1List.push(dateCol + (rowIndex + 1));
           processedCount++;
         } else {
           // Already processed or wrong approver (Data Racing caught)
@@ -141,9 +156,10 @@ const AdminRepository = {
       }
     }
     
-    // If any modifications were made, bulk write back to sheet
+    // Use RangeList for lightning fast batch updates (O(1) API call regardless of size)
     if (processedCount > 0) {
-      sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+      sheet.getRangeList(statusA1List).setValue(newStatus);
+      sheet.getRangeList(dateA1List).setValue(formattedDate);
       SpreadsheetApp.flush();
     }
     
