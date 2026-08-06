@@ -1,0 +1,34 @@
+# ===== Credentials / Keys / Auth =====
+.clasp.json
+*.key
+*.pem
+*.p12
+*.pfx
+*.credentials
+*.secret
+.clasprc.json
+
+# ===== Environment variables =====
+.env
+.env.*
+
+# ===== Node.js =====
+node_modules/
+node_portable/
+
+# ===== IDE / Editor =====
+.agents/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== OS junk =====
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ===== Backup files =====
+*.bak
+*.tmp
