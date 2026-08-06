@@ -61,6 +61,14 @@ const AdminRepository = {
   },
 
   /**
+   * Helper for case-insensitive and trimmed header lookup
+   */
+  _findHeaderIdx: function(headers, name) {
+    const target = String(name).trim().toLowerCase();
+    return headers.findIndex(h => String(h).trim().toLowerCase() === target);
+  },
+
+  /**
    * Get all PENDING transactions for a specific approver
    */
   getPendingTransactions: function(approverName) {
@@ -70,16 +78,24 @@ const AdminRepository = {
     const data = sheet.getRange(1, 1, lastRow, sheet.getLastColumn()).getValues();
     const headers = data[0];
     
-    const idxStatus = headers.indexOf('Status');
-    const idxApprover = headers.indexOf('Approver');
+    const idxStatus = this._findHeaderIdx(headers, 'Status');
+    const idxApprover = this._findHeaderIdx(headers, 'Approver');
+    
+    if (idxStatus === -1 || idxApprover === -1) {
+      Logger.log("Error: Column Status or Approver not found in Transactions sheet");
+      return [];
+    }
     
     const results = [];
+    const targetApprover = String(approverName || '').trim();
     
-    // Start from row 1 (skip headers)
     for (let i = 1; i < data.length; i++) {
       if (!data[i][0]) continue; // Skip empty rows
       const row = data[i];
-      if (row[idxStatus] === 'PENDING' && row[idxApprover] === approverName) {
+      const rowStatus = String(row[idxStatus] || '').trim().toUpperCase();
+      const rowApprover = String(row[idxApprover] || '').trim();
+
+      if (rowStatus === 'PENDING' && rowApprover === targetApprover) {
         const obj = {};
         for (let j = 0; j < headers.length; j++) {
           obj[headers[j]] = row[j];
@@ -100,67 +116,65 @@ const AdminRepository = {
    */
   bulkUpdateTransactionStatus: function(transactionIds, approverName, newStatus) {
     const sheet = this._getSpreadsheet().getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-    const data = sheet.getDataRange().getValues();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { processedCount: 0, failedTransactions: transactionIds.map(id => ({ id, reason: 'SHEET_EMPTY' })) };
+    }
+
+    const data = sheet.getRange(1, 1, lastRow, sheet.getLastColumn()).getValues();
     const headers = data[0];
     
-    const idxId = headers.indexOf('Transaction_ID');
-    const idxStatus = headers.indexOf('Status');
-    const idxApprover = headers.indexOf('Approver');
-    const idxApproveDatetime = headers.indexOf('Approve_Datetime');
+    const idxId = this._findHeaderIdx(headers, 'Transaction_ID');
+    const idxStatus = this._findHeaderIdx(headers, 'Status');
+    const idxApprover = this._findHeaderIdx(headers, 'Approver');
+    const idxApproveDatetime = this._findHeaderIdx(headers, 'Approve_Datetime');
+
+    if (idxId === -1 || idxStatus === -1 || idxApprover === -1 || idxApproveDatetime === -1) {
+      throw new Error(`Required columns not found in Transactions sheet: idxId=${idxId}, idxStatus=${idxStatus}, idxApprover=${idxApprover}, idxApproveDatetime=${idxApproveDatetime}`);
+    }
     
     // Create an index map for O(1) lookup: Transaction_ID -> rowIndex (0-based array index)
     const txMap = new Map();
     for (let i = 1; i < data.length; i++) {
-      txMap.set(data[i][idxId].toString(), i);
+      if (data[i][idxId] !== undefined && data[i][idxId] !== null && data[i][idxId] !== '') {
+        const cleanId = String(data[i][idxId]).trim();
+        txMap.set(cleanId, i);
+      }
     }
     
     let processedCount = 0;
     const now = new Date();
     const formattedDate = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd HH:mm:ss");
+    const targetApprover = String(approverName || '').trim();
 
     const failedIds = [];
-    const statusA1List = [];
-    const dateA1List = [];
-    
-    // Helper to convert 0-based index to A, B, C...
-    const getColLetter = (idx) => {
-      let letter = '';
-      let col = idx + 1;
-      while (col > 0) {
-        let temp = (col - 1) % 26;
-        letter = String.fromCharCode(temp + 65) + letter;
-        col = (col - temp - 1) / 26;
-      }
-      return letter;
-    };
-    
-    const statusCol = getColLetter(idxStatus);
-    const dateCol = getColLetter(idxApproveDatetime);
 
     // Process each requested ID
     for (const txId of transactionIds) {
-      const rowIndex = txMap.get(txId.toString());
+      const cleanTxId = String(txId).trim();
+      const rowIndex = txMap.get(cleanTxId);
+
       if (rowIndex !== undefined) {
         const row = data[rowIndex];
+        const rowStatus = String(row[idxStatus] || '').trim().toUpperCase();
+        const rowApprover = String(row[idxApprover] || '').trim();
         
         // Double-check: Must still be PENDING and belong to this approver
-        if (row[idxStatus] === 'PENDING' && row[idxApprover] === approverName) {
-          statusA1List.push(statusCol + (rowIndex + 1));
-          dateA1List.push(dateCol + (rowIndex + 1));
+        if (rowStatus === 'PENDING' && rowApprover === targetApprover) {
+          // Direct sheet range update for maximum reliability
+          sheet.getRange(rowIndex + 1, idxStatus + 1).setValue(newStatus);
+          sheet.getRange(rowIndex + 1, idxApproveDatetime + 1).setValue(formattedDate);
           processedCount++;
         } else {
           // Already processed or wrong approver (Data Racing caught)
-          failedIds.push({ id: txId, reason: 'ALREADY_PROCESSED_OR_INVALID' });
+          failedIds.push({ id: txId, reason: `Status is ${rowStatus}, Approver is ${rowApprover}` });
         }
       } else {
         failedIds.push({ id: txId, reason: 'NOT_FOUND' });
       }
     }
     
-    // Use RangeList for lightning fast batch updates (O(1) API call regardless of size)
     if (processedCount > 0) {
-      sheet.getRangeList(statusA1List).setValue(newStatus);
-      sheet.getRangeList(dateA1List).setValue(formattedDate);
       SpreadsheetApp.flush();
     }
     

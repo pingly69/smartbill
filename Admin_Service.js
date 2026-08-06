@@ -107,9 +107,12 @@ const AdminService = {
       // 2. Perform bulk update with double-check inside Repository
       const result = AdminRepository.bulkUpdateTransactionStatus(transactionIds, approverName, status);
       
-      // 3. If any rows were updated, we must clear the cache on the main app
+      // 3. If any rows were updated, clear cache on main app
       if (result.processedCount > 0) {
         this.callClearTripCache();
+      } else if (result.failedTransactions && result.failedTransactions.length > 0) {
+        const details = result.failedTransactions.map(f => `${f.id}: ${f.reason}`).join('; ');
+        throw new Error("ไม่สามารถอัปเดตได้ (" + details + ")");
       }
       
       return result;
