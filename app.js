@@ -5,7 +5,7 @@
 
 // Configuration & Constants
 const APP_CONFIG = {
-  GAS_API_URL: 'https://script.google.com/macros/s/AKfycbya3fPSmvww1tHK7HEV8FTp10RjKopFCKZ1M9ppCSDkGVAspWuKdsMfypL58ppj378k/exec',
+  GAS_API_URL: 'https://script.google.com/macros/s/AKfycbzgiozlTEfJcN9pSH9cYtIabYNy_J7DyjyE0P6tMB8rkki-7kPbslsFw2qHOB1G5BGIUg/exec',
   LIFF_ID: '2009016720-pVeqpTCP',
   BATCH_SIZE: 5,
   REQUEST_TIMEOUT_MS: 30000
