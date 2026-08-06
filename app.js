@@ -8,7 +8,7 @@ const CONFIG = {
     API_URL: 'https://script.google.com/macros/s/AKfycbzgiozlTEfJcN9pSH9cYtIabYNy_J7DyjyE0P6tMB8rkki-7kPbslsFw2qHOB1G5BGIUg/exec',
     LIFF_ID: '2009016720-pVeqpTCP', // Same as backend
     API_TIMEOUT_MS: 60000, // 60 seconds
-    PAGE_SIZE: 10
+    PAGE_SIZE: 5
 };
 
 // State
