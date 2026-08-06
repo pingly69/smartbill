@@ -5,7 +5,6 @@
 
 // Configuration & Constants
 const APP_CONFIG = {
-  // Replace with actual deployed GAS WebApp URL if different
   GAS_API_URL: 'https://script.google.com/macros/s/AKfycbya3fPSmvww1tHK7HEV8FTp10RjKopFCKZ1M9ppCSDkGVAspWuKdsMfypL58ppj378k/exec',
   LIFF_ID: '2009016720-pVeqpTCP',
   BATCH_SIZE: 5,
@@ -192,7 +191,7 @@ function showLoginError(msg) {
  * Fetch Pending Approvals (Limit = 5)
  */
 async function loadPendingApprovals() {
-  showLoading('กำลังโหลดรายการรออนุมัติ...', 'ดึงข้อมูลทีละ 5 รายการ');
+  showLoading('กำลังโหลดรายการรออนุมัติ...', 'ดึงข้อมูลเรียงตาม Sheet');
   state.selectedTxIds.clear();
   elements.selectAllCheckbox.checked = false;
 
@@ -216,6 +215,52 @@ async function loadPendingApprovals() {
 }
 
 /**
+ * Parse & Format Trip_Details JSON
+ */
+function formatTripDetails(tripDetailsJson) {
+  let trips = [];
+  try {
+    if (typeof tripDetailsJson === 'string') {
+      trips = JSON.parse(tripDetailsJson);
+    } else if (Array.isArray(tripDetailsJson)) {
+      trips = tripDetailsJson;
+    }
+  } catch (e) {
+    trips = [];
+  }
+
+  if (!Array.isArray(trips) || trips.length === 0) {
+    return '<div class="trip-detail-item"><span class="trip-route-name">ไม่มีรายละเอียดเส้นทางย่อย</span></div>';
+  }
+
+  return trips.map((t, idx) => {
+    const tripNo = t.trip_no || (idx + 1);
+    const origin = t.origin || t.Origin || 'ต้นทาง';
+    const dest = t.dest || t.destination || t.Destination || t.dest_name || 'ปลายทาง';
+    const km = t.km || t.Distance_KM || t.distance || 0;
+    const routeName = t.route_name || t.Route_Name || '';
+    const isRoundTrip = (t.trip_type === 'ROUND_TRIP' || t.Trip_Type === 'ROUND_TRIP');
+    const tripTypeBadge = isRoundTrip ? '🔁 ไป-กลับ' : '➡️ เที่ยวเดียว';
+
+    return `
+      <div class="trip-detail-item">
+        <div class="trip-detail-header">
+          <span class="trip-no-badge">จุดที่ ${tripNo}</span>
+          <span class="trip-type-badge">${tripTypeBadge}</span>
+          <span class="trip-km">${km} กม.</span>
+        </div>
+        ${routeName ? `<div class="trip-route-name">${escapeHtml(routeName)}</div>` : ''}
+        <div class="trip-route-path">
+          <span>📍 ${escapeHtml(origin)}</span>
+          <span class="arrow">➔</span>
+          <span>🏁 ${escapeHtml(dest)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/**
  * Render Queue Cards
  */
 function renderQueue() {
@@ -236,26 +281,18 @@ function renderQueue() {
     card.className = `trip-card ${state.selectedTxIds.has(item.Transaction_ID) ? 'selected' : ''}`;
     card.dataset.id = item.Transaction_ID;
 
-    // Parse Trip Details JSON safely
-    let tripDetailsHtml = '';
-    try {
-      const trips = JSON.parse(item.Trip_Details || '[]');
-      if (Array.isArray(trips) && trips.length > 0) {
-        tripDetailsHtml = trips.map(t => `
-          <div class="trip-detail-item">
-            <span class="trip-route">📍 ${t.Origin || t.origin || 'ต้นทาง'} ➔ ${t.Destination || t.destination || 'ปลายทาง'}</span>
-            <span class="trip-distance">${t.Distance_KM || t.km || 0} กม.</span>
-          </div>
-        `).join('');
-      } else {
-        tripDetailsHtml = '<div class="trip-detail-item"><span class="trip-route">ไม่มีรายละเอียดเส้นทาง</span></div>';
-      }
-    } catch (e) {
-      tripDetailsHtml = '<div class="trip-detail-item"><span class="trip-route">เส้นทางย่อย</span></div>';
-    }
-
+    const tripDetailsHtml = formatTripDetails(item.Trip_Details);
     const netTotal = parseFloat(item.Net_Total || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const reqDate = item.Req_Date ? new Date(item.Req_Date).toLocaleDateString('th-TH') : '-';
+
+    const tollFee = parseFloat(item.Toll_Fee || 0);
+    const parkFee = parseFloat(item.Park_Fee || 0);
+    const flatRateFee = parseFloat(item.Flat_Rate_Fee || 0);
+    
+    let extraFeesText = [];
+    if (flatRateFee > 0) extraFeesText.push(`ค่าใช้รถ: ฿${flatRateFee}`);
+    if (tollFee > 0) extraFeesText.push(`ทางด่วน: ฿${tollFee}`);
+    if (parkFee > 0) extraFeesText.push(`ที่จอด: ฿${parkFee}`);
 
     card.innerHTML = `
       <div class="card-top">
@@ -263,11 +300,22 @@ function renderQueue() {
           <input type="checkbox" class="custom-checkbox card-checkbox" value="${item.Transaction_ID}" ${state.selectedTxIds.has(item.Transaction_ID) ? 'checked' : ''}>
         </div>
         <div class="card-main-info">
-          <div class="req-name">${escapeHtml(item.Req_Name || 'ไม่ระบุชื่อ')}</div>
-          <span class="site-badge">🏢 ${escapeHtml(item.Site_Name || 'ทั่วไป')}</span>
-          <div class="req-date">📅 วันที่: ${reqDate}</div>
+          <div class="req-header-row">
+            <span class="req-name">${escapeHtml(item.Req_Name || 'ไม่ระบุชื่อ')}</span>
+            ${item.Plate_No ? `<span class="plate-badge">🚘 ${escapeHtml(item.Plate_No)}</span>` : ''}
+          </div>
+          <div class="meta-row">
+            <span class="site-badge">🏢 ${escapeHtml(item.Site_Name || 'ทั่วไป')}</span>
+            <span>📅 ${reqDate}</span>
+          </div>
         </div>
       </div>
+
+      ${item.Travel_Purpose ? `
+        <div class="purpose-box">
+          <strong>🎯 วัตถุประสงค์:</strong> ${escapeHtml(item.Travel_Purpose)}
+        </div>
+      ` : ''}
 
       <div class="trip-details-box">
         ${tripDetailsHtml}
@@ -275,7 +323,8 @@ function renderQueue() {
 
       <div class="card-financials">
         <div class="fee-breakdown">
-          <span>ระยะทาง: ${item.Total_KM || 0} กม.</span>
+          <span><strong>ระยะทางรวม:</strong> ${item.Total_KM || 0} กม.</span>
+          ${extraFeesText.length > 0 ? `<span>${extraFeesText.join(' | ')}</span>` : ''}
         </div>
         <div class="net-total-box">
           <div class="net-total-label">ยอดเบิกสุทธิ</div>

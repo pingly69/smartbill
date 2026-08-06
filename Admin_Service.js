@@ -74,11 +74,16 @@ const AdminService = {
       items: page.map(item => ({
         Transaction_ID: item.Transaction_ID,
         Req_Name: item.Req_Name,
-        Site_Name: item.Site_Name,
+        Plate_No: item.Plate_No || '',
+        Site_Name: item.Site_Name || '',
         Req_Date: item.Req_Date,
+        Travel_Purpose: item.Travel_Purpose || '',
         Trip_Details: item.Trip_Details, // Stringified JSON
-        Total_KM: item.Total_KM,
-        Net_Total: item.Net_Total
+        Total_KM: item.Total_KM || 0,
+        Toll_Fee: item.Toll_Fee || 0,
+        Park_Fee: item.Park_Fee || 0,
+        Flat_Rate_Fee: item.Flat_Rate_Fee || 0,
+        Net_Total: item.Net_Total || 0
       }))
     };
   },

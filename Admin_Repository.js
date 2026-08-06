@@ -104,9 +104,7 @@ const AdminRepository = {
       }
     }
     
-    // Sort by Date descending
-    results.sort((a, b) => new Date(b.Req_Date) - new Date(a.Req_Date));
-    
+    // Keep natural top-to-bottom sheet order
     return results;
   },
 
