@@ -268,14 +268,22 @@ function createCard(tx) {
     // Event Listeners
     const checkbox = div.querySelector('.custom-checkbox');
     checkbox.addEventListener('change', (e) => {
+        e.stopPropagation(); // ป้องกัน click bubble ขึ้น card-content
+        const txId = String(tx.Transaction_ID); // normalize type ป้องกัน mismatch
         if (e.target.checked) {
-            state.selectedIds.add(tx.Transaction_ID);
+            state.selectedIds.add(txId);
             div.classList.add('selected');
         } else {
-            state.selectedIds.delete(tx.Transaction_ID);
+            state.selectedIds.delete(txId);
             div.classList.remove('selected');
         }
         updateFab();
+    });
+
+    // คลิกที่ checkbox area ไม่ควร toggle details
+    const checkboxArea = div.querySelector('.card-checkbox');
+    checkboxArea.addEventListener('click', (e) => {
+        e.stopPropagation();
     });
 
     const contentArea = div.querySelector('.card-content');
