@@ -28,7 +28,7 @@ const AdminRepository = {
     const colActive = headers.indexOf('Active');
 
     for (let i = 1; i < data.length; i++) {
-      if (data[i][colUid] === uidOrCode && data[i][colActive] === true) {
+      if (String(data[i][colUid]) === String(uidOrCode) && data[i][colActive] === true) {
         const approverData = {
           name: data[i][colName],
           rowIndex: i + 1 // 1-based index

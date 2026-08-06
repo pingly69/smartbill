@@ -183,11 +183,17 @@ function createCard(tx) {
         if (Array.isArray(details)) {
             detailsHtml = `<div class="card-details hidden">`;
             details.forEach((route, idx) => {
+                const origin = route.origin || '-';
+                const dest = route.dest || '-';
+                const km = route.km || 0;
+                const routeName = route.route_name || '-';
+                const tripType = route.trip_type === 'ROUND_TRIP' ? '(ไป-กลับ)' : '(เที่ยวเดียว)';
+                
                 detailsHtml += `
                 <div class="trip-route">
-                    <div class="route-item"><span>จุดที่ ${idx+1}:</span> <strong>${route.start}</strong></div>
-                    <div class="route-item"><span>ปลายทาง:</span> <strong>${route.end}</strong></div>
-                    <div class="route-item"><span>ระยะทาง:</span> <span>${route.distance} กม.</span></div>
+                    <div class="route-item"><span>จุดที่ ${idx+1}:</span> <strong>${origin} <i class="fa-solid fa-arrow-right" style="margin: 0 4px; font-size: 10px; opacity: 0.5;"></i> ${dest}</strong></div>
+                    <div class="route-item"><span>เส้นทาง:</span> <span style="text-align:right; font-size: 12px; color: var(--text-muted);">${routeName} ${tripType}</span></div>
+                    <div class="route-item" style="margin-top: 4px;"><span>ระยะทาง:</span> <strong>${km} กม.</strong></div>
                 </div>`;
             });
             detailsHtml += `</div>`;
