@@ -1,7 +1,6 @@
 /**
- * app.js v2.0 — Trip1Day Approver
- * Redesigned: Per-card Approve/Reject buttons (no FAB, no bulk select)
- * Fixes: text selection, pointer-events, modal hidden bug
+ * app.js v3.0 — Trip1Day Approver (Batch 5 Flow)
+ * Redesigned: Stable Batch 5 processing, auto-select all, fixed bottom bar.
  */
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
@@ -16,10 +15,8 @@ const state = {
   lineUid: null,
   approverName: null,
   transactions: [],
-  totalCount: 0,
-  serverOffset: 0,
-  displayedCount: 0,
-  pendingAction: null  // { txId, action: 'APPROVED'|'REJECTED' }
+  selectedIds: new Set(),
+  pendingAction: null  // 'APPROVED'|'REJECTED'
 };
 
 // ─── DOM REFS ────────────────────────────────────────────────────────────────
@@ -37,8 +34,14 @@ const els = {
   transactionList:     document.getElementById('transactionList'),
   emptyState:          document.getElementById('emptyState'),
   btnRefreshEmpty:     document.getElementById('btnRefreshEmpty'),
-  loadMoreContainer:   document.getElementById('loadMoreContainer'),
-  btnLoadMore:         document.getElementById('btnLoadMore'),
+  
+  // Fixed Bottom Bar
+  bottomBar:           document.getElementById('bottomBar'),
+  selectedCountText:   document.getElementById('selectedCountText'),
+  btnBulkReject:       document.getElementById('btnBulkReject'),
+  btnBulkApprove:      document.getElementById('btnBulkApprove'),
+  
+  // Modal
   confirmModal:        document.getElementById('confirmModal'),
   modalTitle:          document.getElementById('modalTitle'),
   modalMessage:        document.getElementById('modalMessage'),
@@ -70,8 +73,6 @@ async function callApi(action, payload) {
 // ─── INIT ────────────────────────────────────────────────────────────────────
 async function init() {
   showLoader('กำลังเชื่อมต่อระบบ...');
-
-  // 🔥 GAS Warm-up: ping ก่อนล่วงหน้าขณะ LIFF init (ลด cold start)
   callApi('ping', {}).catch(() => {});
 
   if (CONFIG.LIFF_ID === 'YOUR_LIFF_ID') {
@@ -99,8 +100,6 @@ async function init() {
 // ─── LOGIN ───────────────────────────────────────────────────────────────────
 async function checkLogin() {
   showLoader('กำลังตรวจสอบสิทธิ์...');
-
-  // ใช้ session cache ถ้ามี (ลด API call)
   const cached = sessionStorage.getItem('approverName');
   if (cached) {
     state.approverName = cached;
@@ -127,7 +126,6 @@ async function checkLogin() {
   }
 }
 
-// Setup Code
 els.btnSetup.addEventListener('click', async () => {
   const code = els.setupCodeInput.value.trim();
   if (!code) return;
@@ -155,25 +153,23 @@ function showDashboard() {
   els.loginScreen.classList.add('hidden');
   els.dashboardScreen.classList.remove('hidden');
   els.approverNameDisplay.textContent = state.approverName;
-  fetchTransactions();
+  fetchTop5Pending();
 }
 
-async function fetchTransactions() {
-  showLoader('กำลังดึงข้อมูล...');
+async function fetchTop5Pending() {
+  showLoader('กำลังดึงข้อมูลรอบใหม่...');
+  state.selectedIds.clear(); // Clear selections on new fetch
+  
   try {
     const res = await callApi('getPendingApprovals', {
       approverName: state.approverName,
       offset: 0,
       limit: CONFIG.PAGE_SIZE
     });
+    
     if (res.status === 'success') {
-      const pageData = res.data;
-      state.transactions  = pageData.items;
-      state.totalCount    = pageData.total;
-      state.serverOffset  = pageData.items.length;
-      state.displayedCount = 0;
-      els.transactionList.innerHTML = '';
-      renderNextBatch(pageData.hasMore);
+      state.transactions = res.data.items || [];
+      renderCards();
     } else {
       alert('โหลดข้อมูลไม่ได้: ' + res.message);
     }
@@ -185,43 +181,37 @@ async function fetchTransactions() {
 }
 
 // ─── RENDER ──────────────────────────────────────────────────────────────────
-function renderNextBatch(serverHasMore) {
-  const start = state.displayedCount;
-  const end   = Math.min(start + CONFIG.PAGE_SIZE, state.transactions.length);
-
-  for (let i = start; i < end; i++) {
-    els.transactionList.appendChild(createCard(state.transactions[i]));
-  }
-  state.displayedCount = end;
-
-  const localHasMore  = state.displayedCount < state.transactions.length;
-  const hasMore       = localHasMore || serverHasMore;
-
-  // Empty state
-  if (state.transactions.length === 0 && !serverHasMore) {
+function renderCards() {
+  els.transactionList.innerHTML = '';
+  
+  if (state.transactions.length === 0) {
     els.emptyState.classList.remove('hidden');
-  } else {
-    els.emptyState.classList.add('hidden');
+    els.bottomBar.classList.add('hidden');
+    return;
   }
+  
+  els.emptyState.classList.add('hidden');
+  els.bottomBar.classList.remove('hidden');
 
-  // Load more button
-  if (hasMore) {
-    els.loadMoreContainer.classList.remove('hidden');
-    els.btnLoadMore.dataset.fetchServer = localHasMore ? '0' : '1';
-  } else {
-    els.loadMoreContainer.classList.add('hidden');
-  }
+  state.transactions.forEach(tx => {
+    // Auto-select all by default
+    state.selectedIds.add(String(tx.Transaction_ID));
+    
+    const card = createCard(tx);
+    els.transactionList.appendChild(card);
+  });
+  
+  updateBottomBar();
 }
 
 function createCard(tx) {
   const div = document.createElement('div');
-  div.className = 'tx-card';
+  div.className = 'tx-card selected'; // Selected by default
   div.dataset.txId = String(tx.Transaction_ID);
 
   const dateStr  = tx.Req_Date ? new Date(tx.Req_Date).toLocaleDateString('th-TH') : '-';
   const netTotal = Number(tx.Net_Total || 0).toLocaleString();
 
-  // Parse trip details
   let detailsHtml = '';
   try {
     const trips = typeof tx.Trip_Details === 'string' ? JSON.parse(tx.Trip_Details) : tx.Trip_Details;
@@ -251,138 +241,112 @@ function createCard(tx) {
       <div class="card-site"><i class="fa-solid fa-location-dot"></i> ${tx.Site_Name || '-'}</div>
       <div class="card-amount">฿${netTotal}</div>
       ${detailsHtml}
-    </div>
-    <div class="card-actions">
-      <button class="btn-card-reject" data-tx-id="${tx.Transaction_ID}">
-        <i class="fa-solid fa-xmark"></i><span>ไม่อนุมัติ</span>
-      </button>
-      <button class="btn-card-approve" data-tx-id="${tx.Transaction_ID}">
-        <i class="fa-solid fa-check"></i><span>อนุมัติ</span>
-      </button>
+      
+      <!-- Checkbox overlay -->
+      <div class="card-checkbox"><i class="fa-solid fa-check"></i></div>
     </div>
   `;
 
-  // Bind per-card buttons — no FAB, no bulk, no floating element
-  div.querySelector('.btn-card-approve').addEventListener('click', (e) => {
-    e.stopPropagation();
-    openConfirmModal(String(tx.Transaction_ID), tx.Req_Name, 'APPROVED');
-  });
-  div.querySelector('.btn-card-reject').addEventListener('click', (e) => {
-    e.stopPropagation();
-    openConfirmModal(String(tx.Transaction_ID), tx.Req_Name, 'REJECTED');
+  // Toggle selection on card click
+  div.addEventListener('click', () => {
+    const txId = div.dataset.txId;
+    if (state.selectedIds.has(txId)) {
+      state.selectedIds.delete(txId);
+      div.classList.remove('selected');
+    } else {
+      state.selectedIds.add(txId);
+      div.classList.add('selected');
+    }
+    updateBottomBar();
   });
 
   return div;
 }
 
-// ─── MODAL ───────────────────────────────────────────────────────────────────
-function openConfirmModal(txId, reqName, action) {
-  state.pendingAction = { txId, action };
+function updateBottomBar() {
+  const count = state.selectedIds.size;
+  els.selectedCountText.textContent = `เลือกแล้ว ${count} รายการ`;
+  
+  const hasSelection = count > 0;
+  els.btnBulkApprove.disabled = !hasSelection;
+  els.btnBulkReject.disabled = !hasSelection;
+}
+
+// ─── MODAL & ACTIONS ─────────────────────────────────────────────────────────
+els.btnBulkApprove.addEventListener('click', () => openConfirmModal('APPROVED'));
+els.btnBulkReject.addEventListener('click', () => openConfirmModal('REJECTED'));
+
+function openConfirmModal(action) {
+  state.pendingAction = action;
+  const count = state.selectedIds.size;
 
   if (action === 'APPROVED') {
     els.modalTitle.textContent   = 'ยืนยันการอนุมัติ';
     els.modalTitle.style.color   = 'var(--primary-dark)';
-    els.modalMessage.textContent = `อนุมัติค่าเดินทางของ "${reqName}" ใช่หรือไม่?`;
+    els.modalMessage.textContent = `อนุมัติค่าเดินทางทั้งหมด ${count} รายการ ใช่หรือไม่?`;
     els.btnModalConfirm.className = 'btn btn-success';
     els.btnModalConfirm.textContent = '✓ อนุมัติ';
   } else {
     els.modalTitle.textContent   = 'ยืนยันการไม่อนุมัติ';
     els.modalTitle.style.color   = 'var(--danger-color)';
-    els.modalMessage.textContent = `ปฏิเสธค่าเดินทางของ "${reqName}" ใช่หรือไม่?`;
+    els.modalMessage.textContent = `ปฏิเสธค่าเดินทางทั้งหมด ${count} รายการ ใช่หรือไม่?`;
     els.btnModalConfirm.className = 'btn btn-danger';
     els.btnModalConfirm.textContent = '✗ ไม่อนุมัติ';
   }
 
-  // ต้อง remove hidden ก่อน แล้วค่อย add active
   els.confirmModal.classList.remove('hidden');
   requestAnimationFrame(() => els.confirmModal.classList.add('active'));
 }
 
 function closeConfirmModal() {
   els.confirmModal.classList.remove('active');
-  setTimeout(() => els.confirmModal.classList.add('hidden'), 200); // รอ animation
+  setTimeout(() => els.confirmModal.classList.add('hidden'), 200);
   state.pendingAction = null;
 }
 
-async function executeAction() {
-  const pending = state.pendingAction; // cache ก่อน close modal
-  if (!pending) return;
+async function executeBatchAction() {
+  const action = state.pendingAction;
+  if (!action || state.selectedIds.size === 0) return;
   closeConfirmModal();
 
-  showLoader(pending.action === 'APPROVED' ? 'กำลังอนุมัติ...' : 'กำลังปฏิเสธ...');
+  showLoader(action === 'APPROVED' ? 'กำลังอนุมัติ...' : 'กำลังปฏิเสธ...');
   try {
     const res = await callApi('approveTransactions', {
-      transactionIds: [pending.txId],
+      transactionIds: Array.from(state.selectedIds),
       approverName:   state.approverName,
-      status:         pending.action
+      status:         action
     });
+    
     if (res.status === 'success') {
-      // ลบ card ออกจาก DOM และ state
-      removeCardFromUI(pending.txId);
+      // Clear UI visually for a split second before re-fetching
+      state.selectedIds.forEach(id => {
+        const card = els.transactionList.querySelector(`[data-tx-id="${id}"]`);
+        if (card) {
+          card.style.opacity = '0';
+          card.style.transform = 'scale(0.9)';
+        }
+      });
+      
+      // Fetch the next batch immediately
+      setTimeout(() => fetchTop5Pending(), 300);
     } else {
       alert('เกิดข้อผิดพลาด: ' + res.message);
     }
   } catch (err) {
     alert('เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่');
   } finally {
-    hideLoader();
+    // Note: hideLoader() will be handled by fetchTop5Pending() if successful,
+    // but in case of error, we should hide it here.
+    if (!state.pendingAction) hideLoader(); 
   }
 }
 
-function removeCardFromUI(txId) {
-  const card = els.transactionList.querySelector(`[data-tx-id="${txId}"]`);
-  if (card) {
-    card.classList.add('card-removing');
-    setTimeout(() => {
-      card.remove();
-      state.transactions = state.transactions.filter(t => String(t.Transaction_ID) !== txId);
-      state.displayedCount = Math.max(0, state.displayedCount - 1);
-      state.totalCount = Math.max(0, state.totalCount - 1);
-
-      if (els.transactionList.children.length === 0) {
-        els.emptyState.classList.remove('hidden');
-      }
-    }, 300);
-  }
-}
-
-// ─── LOAD MORE ───────────────────────────────────────────────────────────────
-els.btnLoadMore.addEventListener('click', async () => {
-  if (els.btnLoadMore.dataset.fetchServer === '1') {
-    // ดึงจาก server
-    try {
-      showLoader('กำลังโหลดเพิ่มเติม...');
-      const res = await callApi('getPendingApprovals', {
-        approverName: state.approverName,
-        offset: state.serverOffset,
-        limit: CONFIG.PAGE_SIZE
-      });
-      if (res.status === 'success') {
-        const pageData = res.data;
-        state.transactions = state.transactions.concat(pageData.items);
-        state.serverOffset += pageData.items.length;
-        renderNextBatch(pageData.hasMore);
-      }
-    } catch (err) {
-      alert('โหลดข้อมูลไม่ได้');
-    } finally {
-      hideLoader();
-    }
-  } else {
-    renderNextBatch(false);
-  }
-});
-
-// ─── EVENT BINDINGS ──────────────────────────────────────────────────────────
-els.btnModalConfirm.addEventListener('click', executeAction);
+els.btnModalConfirm.addEventListener('click', executeBatchAction);
 els.btnModalCancel.addEventListener('click',  closeConfirmModal);
-
-// ปิด modal เมื่อกด backdrop
 els.confirmModal.addEventListener('click', (e) => {
   if (e.target === els.confirmModal) closeConfirmModal();
 });
-
-els.btnRefreshEmpty.addEventListener('click', fetchTransactions);
+els.btnRefreshEmpty.addEventListener('click', fetchTop5Pending);
 
 // ─── START ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', init);
