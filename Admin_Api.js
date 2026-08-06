@@ -21,6 +21,8 @@ const AdminApi = {
       let result;
 
       switch (action) {
+        case 'ping':
+          return this.successResponse({ time: new Date().toISOString() });
         case 'login':
           result = AdminService.handleLogin(payload.lineUid, payload.setupCode);
           break;
