@@ -136,7 +136,47 @@ def push():
     try:
         res = urllib.request.urlopen(req)
         resp_data = json.loads(res.read())
-        print(f"Push successful to Google Apps Script (Project ID: {script_id})!")
+        print(f"Push code successful to Google Apps Script (Project ID: {script_id})!")
+
+        # Create a new version automatically
+        v_url = f'https://script.googleapis.com/v1/projects/{script_id}/versions'
+        v_req = urllib.request.Request(v_url, data=json.dumps({'description': 'Auto deploy from gas_sync.py'}).encode('utf-8'), method='POST')
+        v_req.add_header('Authorization', f'Bearer {access_token}')
+        v_req.add_header('Content-Type', 'application/json')
+        v_res = urllib.request.urlopen(v_req)
+        v_data = json.loads(v_res.read())
+        new_version = v_data.get('versionNumber')
+        print(f"  [VERSION] Created new Version #{new_version}")
+
+        # Update existing deployments to point to the new version
+        d_url = f'https://script.googleapis.com/v1/projects/{script_id}/deployments'
+        d_req = urllib.request.Request(d_url)
+        d_req.add_header('Authorization', f'Bearer {access_token}')
+        d_res = urllib.request.urlopen(d_req)
+        d_data = json.loads(d_res.read())
+
+        for dep in d_data.get('deployments', []):
+            dep_id = dep.get('deploymentId')
+            # Update web app deployment
+            upd_url = f'https://script.googleapis.com/v1/projects/{script_id}/deployments/{dep_id}'
+            upd_payload = {
+                'deploymentConfig': {
+                    'scriptId': script_id,
+                    'versionNumber': new_version,
+                    'manifestFileName': 'appsscript'
+                }
+            }
+            upd_req = urllib.request.Request(upd_url, data=json.dumps(upd_payload).encode('utf-8'), method='PUT')
+            upd_req.add_header('Authorization', f'Bearer {access_token}')
+            upd_req.add_header('Content-Type', 'application/json')
+            try:
+                urllib.request.urlopen(upd_req)
+                print(f"  [DEPLOY] Updated Deployment {dep_id} to Version #{new_version}")
+            except Exception as ex:
+                pass
+
+        print(f"[SUCCESS] Auto-deployment completed! WebApp is now running Version #{new_version}.")
+
     except urllib.error.HTTPError as e:
         print(f"Error pushing to Google Apps Script: {e}")
         print(e.read().decode('utf-8'))
