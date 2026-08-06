@@ -57,6 +57,10 @@ const els = {
  */
 async function init() {
     showLoader('กำลังเชื่อมต่อระบบ...');
+
+    // 🔥 GAS Warm-up: ยิง ping ไปปลุก GAS server ล่วงหน้า (background, ไม่ await)
+    // เพื่อลด Cold Start delay ขณะ LIFF กำลัง init ไปพร้อมกัน
+    callApi('ping', {}).catch(() => {}); // ไม่ต้องรอ ไม่ต้องสนใจ error
     
     // In local dev without LIFF ID, we can mock it
     if (CONFIG.LIFF_ID === 'รอ update ใหม่') {
@@ -405,11 +409,15 @@ function openConfirmModal(action) {
         els.modalMessage.textContent = `คุณต้องการ "ปฏิเสธ" รายการที่เลือกจำนวน ${count} รายการ ใช่หรือไม่?`;
     }
     
+    // BUG FIX: ต้อง remove 'hidden' ก่อน ไม่งั้น display:none !important จะ override .active
+    els.confirmModal.classList.remove('hidden');
     els.confirmModal.classList.add('active');
 }
 
 function closeConfirmModal() {
     els.confirmModal.classList.remove('active');
+    // BUG FIX: คืน hidden กลับหลังปิด modal
+    els.confirmModal.classList.add('hidden');
     state.currentAction = null;
 }
 
