@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trip1Day Approver</title>
+    <!-- LIFF SDK -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <!-- 1. Global Loading Overlay (Anti-DoubleClick & Loading State) -->
+    <div id="globalLoader" class="overlay active">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <p id="loaderText">กำลังเชื่อมต่อระบบ...</p>
+        </div>
+    </div>
+
+    <!-- 2. Login / Setup Screen -->
+    <div id="loginScreen" class="screen hidden">
+        <div class="login-container">
+            <div class="logo-area">
+                <i class="fa-solid fa-check-double logo-icon"></i>
+                <h1>Trip1Day Approver</h1>
+                <p>ระบบอนุมัติค่าเดินทาง</p>
+            </div>
+            
+            <div id="setupForm" class="setup-form">
+                <p class="instruction">ลงทะเบียนเข้าใช้งานครั้งแรก<br>กรุณากรอกรหัสผ่านชั่วคราว (Setup Code)</p>
+                <input type="text" id="setupCodeInput" placeholder="รหัสผ่านชั่วคราว">
+                <button id="btnSetup" class="btn btn-primary">ยืนยันตัวตน</button>
+            </div>
+            <div id="loginMessage" class="error-message hidden"></div>
+        </div>
+    </div>
+
+    <!-- 3. Main Dashboard Screen -->
+    <div id="dashboardScreen" class="screen hidden">
+        <header class="app-header">
+            <div class="header-left">
+                <h2><i class="fa-solid fa-clipboard-check"></i> รออนุมัติ</h2>
+            </div>
+            <div class="header-right">
+                <span id="approverNameDisplay" class="user-name"></span>
+                <img id="userAvatar" class="avatar hidden" alt="Avatar">
+            </div>
+        </header>
+
+        <main class="content-area">
+            <div id="emptyState" class="empty-state hidden">
+                <i class="fa-regular fa-face-smile-wink"></i>
+                <p>ไม่มีรายการรออนุมัติ</p>
+                <button id="btnRefreshEmpty" class="btn btn-outline"><i class="fa-solid fa-rotate-right"></i> รีเฟรช</button>
+            </div>
+
+            <div id="transactionList" class="transaction-list">
+                <!-- Cards will be injected here by JS -->
+            </div>
+            
+            <div id="loadMoreContainer" class="load-more-container hidden">
+                <button id="btnLoadMore" class="btn btn-outline">โหลดเพิ่มเติม</button>
+            </div>
+        </main>
+
+        <!-- Floating Action Button Area (Bulk Action) -->
+        <div id="fabArea" class="fab-area hidden">
+            <div class="fab-actions">
+                <button id="btnBulkReject" class="btn btn-danger fab-btn"><i class="fa-solid fa-xmark"></i> ไม่อนุมัติ</button>
+                <button id="btnBulkApprove" class="btn btn-success fab-btn"><i class="fa-solid fa-check"></i> อนุมัติ <span id="selectedCount">(0)</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirmModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="modalTitle">ยืนยันการทำรายการ</h3>
+            <p id="modalMessage">คุณต้องการอนุมัติรายการที่เลือกใช่หรือไม่?</p>
+            <div class="modal-actions">
+                <button id="btnModalCancel" class="btn btn-secondary">ยกเลิก</button>
+                <button id="btnModalConfirm" class="btn btn-primary">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom JS -->
+    <script src="app.js"></script>
+</body>
+</html>
