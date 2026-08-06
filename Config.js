@@ -14,6 +14,7 @@ const CONFIG = {
   MAX_TRIPS_PER_DAY: 10,
   CACHE_TTL_SECONDS: 600, // 10 minutes
   LOCK_TIMEOUT_MS: 15000,  // 15 seconds
+  APPROVAL_BATCH_SIZE: 5,  // Process 5 items per batch
   CLEAR_CACHE_URL: 'https://script.google.com/macros/s/AKfycbya3fPSmvww1tHK7HEV8FTp10RjKopFCKZ1M9ppCSDkGVAspWuKdsMfypL58ppj378k/exec',
 
   SHEETS: {

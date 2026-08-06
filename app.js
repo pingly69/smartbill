@@ -1,352 +1,429 @@
 /**
- * app.js v3.0 — Trip1Day Approver (Batch 5 Flow)
- * Redesigned: Stable Batch 5 processing, auto-select all, fixed bottom bar.
+ * app.js - Frontend Application Logic
+ * Trip1Day Approver Mobile Web App
  */
 
-// ─── CONFIG ──────────────────────────────────────────────────────────────────
-const CONFIG = {
+// Configuration & Constants
+const APP_CONFIG = {
+  // Replace with actual deployed GAS WebApp URL if different
+  GAS_API_URL: 'https://script.google.com/macros/s/AKfycbya3fPSmvww1tHK7HEV8FTp10RjKopFCKZ1M9ppCSDkGVAspWuKdsMfypL58ppj378k/exec',
   LIFF_ID: '2009016720-pVeqpTCP',
-  API_URL: 'https://script.google.com/macros/s/AKfycbzgiozlTEfJcN9pSH9cYtIabYNy_J7DyjyE0P6tMB8rkki-7kPbslsFw2qHOB1G5BGIUg/exec',
-  PAGE_SIZE: 5
+  BATCH_SIZE: 5,
+  REQUEST_TIMEOUT_MS: 30000
 };
 
-// ─── STATE ───────────────────────────────────────────────────────────────────
+// Application State
 const state = {
   lineUid: null,
   approverName: null,
-  transactions: [],
-  selectedIds: new Set(),
-  pendingAction: null  // 'APPROVED'|'REJECTED'
+  pendingItems: [],
+  selectedTxIds: new Set(),
+  totalPendingCount: 0
 };
 
-// ─── DOM REFS ────────────────────────────────────────────────────────────────
-const els = {
-  globalLoader:        document.getElementById('globalLoader'),
-  loaderText:          document.getElementById('loaderText'),
-  loginScreen:         document.getElementById('loginScreen'),
-  setupForm:           document.getElementById('setupForm'),
-  setupCodeInput:      document.getElementById('setupCodeInput'),
-  btnSetup:            document.getElementById('btnSetup'),
-  loginMessage:        document.getElementById('loginMessage'),
-  dashboardScreen:     document.getElementById('dashboardScreen'),
+// DOM Elements
+const elements = {
   approverNameDisplay: document.getElementById('approverNameDisplay'),
-  userAvatar:          document.getElementById('userAvatar'),
-  transactionList:     document.getElementById('transactionList'),
-  emptyState:          document.getElementById('emptyState'),
-  btnRefreshEmpty:     document.getElementById('btnRefreshEmpty'),
-  
-  // Fixed Bottom Bar
-  bottomBar:           document.getElementById('bottomBar'),
-  selectedCountText:   document.getElementById('selectedCountText'),
-  btnBulkReject:       document.getElementById('btnBulkReject'),
-  btnBulkApprove:      document.getElementById('btnBulkApprove'),
-  
-  // Modal
-  confirmModal:        document.getElementById('confirmModal'),
-  modalTitle:          document.getElementById('modalTitle'),
-  modalMessage:        document.getElementById('modalMessage'),
-  btnModalCancel:      document.getElementById('btnModalCancel'),
-  btnModalConfirm:     document.getElementById('btnModalConfirm')
+  loginSection: document.getElementById('loginSection'),
+  setupCodeInput: document.getElementById('setupCodeInput'),
+  loginError: document.getElementById('loginError'),
+  btnLogin: document.getElementById('btnLogin'),
+  queueSection: document.getElementById('queueSection'),
+  cardsContainer: document.getElementById('cardsContainer'),
+  emptyState: document.getElementById('emptyState'),
+  selectAllCheckbox: document.getElementById('selectAllCheckbox'),
+  queueBadge: document.getElementById('queueBadge'),
+  actionBar: document.getElementById('actionBar'),
+  selectedCount: document.getElementById('selectedCount'),
+  selectedAmount: document.getElementById('selectedAmount'),
+  btnApprove: document.getElementById('btnApprove'),
+  btnReject: document.getElementById('btnReject'),
+  btnRefresh: document.getElementById('btnRefresh'),
+  loadingOverlay: document.getElementById('loadingOverlay'),
+  loadingMessage: document.getElementById('loadingMessage'),
+  loadingSubtext: document.getElementById('loadingSubtext')
 };
 
-// ─── LOADER ──────────────────────────────────────────────────────────────────
-function showLoader(msg) {
-  els.loaderText.textContent = msg || 'กำลังโหลด...';
-  els.globalLoader.classList.add('active');
-}
-function hideLoader() {
-  els.globalLoader.classList.remove('active');
-}
-
-// ─── API ─────────────────────────────────────────────────────────────────────
-async function callApi(action, payload) {
-  const body = JSON.stringify({ action, payload });
-  const res = await fetch(CONFIG.API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body
-  });
-  const text = await res.text();
-  return JSON.parse(text);
-}
-
-// ─── INIT ────────────────────────────────────────────────────────────────────
-async function init() {
-  showLoader('กำลังเชื่อมต่อระบบ...');
-  callApi('ping', {}).catch(() => {});
-
-  if (CONFIG.LIFF_ID === 'YOUR_LIFF_ID') {
-    state.lineUid = 'Udummy1234567890';
-    await checkLogin();
-    return;
-  }
-  try {
-    await liff.init({ liffId: CONFIG.LIFF_ID });
-    if (!liff.isLoggedIn()) {
-      liff.login();
-    } else {
-      const profile = await liff.getProfile();
-      state.lineUid = profile.userId;
-      els.userAvatar.src = profile.pictureUrl;
-      els.userAvatar.classList.remove('hidden');
-      await checkLogin();
-    }
-  } catch (err) {
-    hideLoader();
-    alert('ไม่สามารถเชื่อมต่อ LINE ได้');
-  }
-}
-
-// ─── LOGIN ───────────────────────────────────────────────────────────────────
-async function checkLogin() {
-  showLoader('กำลังตรวจสอบสิทธิ์...');
-  const cached = sessionStorage.getItem('approverName');
-  if (cached) {
-    state.approverName = cached;
-    showDashboard();
-    return;
-  }
-
-  try {
-    const res = await callApi('login', { lineUid: state.lineUid });
-    if (res.status === 'success' && res.data.isLoggedIn) {
-      state.approverName = res.data.approverName;
-      sessionStorage.setItem('approverName', state.approverName);
-      showDashboard();
-    } else {
-      hideLoader();
-      els.loginScreen.classList.remove('hidden');
-      els.setupForm.classList.remove('hidden');
-    }
-  } catch (err) {
-    hideLoader();
-    els.loginScreen.classList.remove('hidden');
-    els.loginMessage.textContent = 'เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่';
-    els.loginMessage.classList.remove('hidden');
-  }
-}
-
-els.btnSetup.addEventListener('click', async () => {
-  const code = els.setupCodeInput.value.trim();
-  if (!code) return;
-  showLoader('กำลังยืนยันตัวตน...');
-  try {
-    const res = await callApi('login', { lineUid: state.lineUid, setupCode: code });
-    if (res.status === 'success' && res.data.isLoggedIn) {
-      state.approverName = res.data.approverName;
-      sessionStorage.setItem('approverName', state.approverName);
-      showDashboard();
-    } else {
-      hideLoader();
-      els.loginMessage.textContent = res.message || 'รหัสไม่ถูกต้อง';
-      els.loginMessage.classList.remove('hidden');
-    }
-  } catch (err) {
-    hideLoader();
-    els.loginMessage.textContent = 'เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่';
-    els.loginMessage.classList.remove('hidden');
-  }
+// Initialize Application
+document.addEventListener('DOMContentLoaded', async () => {
+  setupEventListeners();
+  await initLiff();
 });
 
-// ─── DASHBOARD ───────────────────────────────────────────────────────────────
-function showDashboard() {
-  els.loginScreen.classList.add('hidden');
-  els.dashboardScreen.classList.remove('hidden');
-  els.approverNameDisplay.textContent = state.approverName;
-  fetchTop5Pending();
+function setupEventListeners() {
+  elements.btnLogin.addEventListener('click', handleLoginSubmit);
+  elements.btnRefresh.addEventListener('click', () => loadPendingApprovals());
+  elements.selectAllCheckbox.addEventListener('change', handleSelectAllToggle);
+  elements.btnApprove.addEventListener('click', () => handleApprovalAction('APPROVED'));
+  elements.btnReject.addEventListener('click', () => handleApprovalAction('REJECTED'));
 }
 
-async function fetchTop5Pending() {
-  showLoader('กำลังดึงข้อมูลรอบใหม่...');
-  state.selectedIds.clear(); // Clear selections on new fetch
-  
+/**
+ * Initialize LINE LIFF SDK
+ */
+async function initLiff() {
+  showLoading('กำลังเข้าสู่ระบบ...', 'กำลังเชื่อมต่อ LINE LIFF');
   try {
-    const res = await callApi('getPendingApprovals', {
+    if (window.liff && APP_CONFIG.LIFF_ID) {
+      await liff.init({ liffId: APP_CONFIG.LIFF_ID });
+      if (liff.isLoggedIn()) {
+        const profile = await liff.getProfile();
+        state.lineUid = profile.userId;
+      }
+    }
+  } catch (err) {
+    console.warn('LIFF init warning:', err);
+  }
+
+  // Fallback for development / testing without LIFF
+  if (!state.lineUid) {
+    state.lineUid = localStorage.getItem('TRIP1DAY_APPROVER_UID') || ('MOCK_UID_' + Math.floor(Math.random() * 1000));
+    localStorage.setItem('TRIP1DAY_APPROVER_UID', state.lineUid);
+  }
+
+  // Attempt login with current LINE UID
+  await attemptLogin(state.lineUid);
+}
+
+/**
+ * API Fetch Helper with Timeout & Retry
+ */
+async function apiCall(action, payload = {}, retryCount = 1) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), APP_CONFIG.REQUEST_TIMEOUT_MS);
+
+  const requestBody = JSON.stringify({
+    action: action,
+    payload: payload
+  });
+
+  try {
+    const response = await fetch(APP_CONFIG.GAS_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8' // CORS Bypass header
+      },
+      body: requestBody,
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    const responseText = await response.text();
+    let data;
+
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      // Anti-429 Retry Mechanism: Google returned HTML error instead of JSON
+      if (retryCount > 0) {
+        console.warn('Received non-JSON response, retrying in 2 seconds...');
+        await new Promise(res => setTimeout(res, 2000));
+        return await apiCall(action, payload, retryCount - 1);
+      }
+      throw new Error('ระบบไม่ตอบสนองเป็น JSON กรุณาลองใหม่อีกครั้ง');
+    }
+
+    if (data.status !== 'success') {
+      throw new Error(data.message || 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์');
+    }
+
+    return data.data;
+
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('การเชื่อมต่อหมดเวลา (Timeout 30s) กรุณาลองใหม่อีกครั้ง');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Login flow (Checking LINE UID or Setup Code)
+ */
+async function attemptLogin(lineUid, setupCode = null) {
+  showLoading('ตรวจสอบสิทธิ์ใช้งาน...', 'โปรดรอสักครู่');
+  elements.loginError.classList.add('hidden');
+
+  try {
+    const res = await apiCall('login', { lineUid, setupCode });
+
+    if (res.isLoggedIn) {
+      state.approverName = res.approverName;
+      elements.approverNameDisplay.textContent = `ผู้อนุมัติ: ${state.approverName}`;
+      elements.loginSection.classList.add('hidden');
+      elements.queueSection.classList.remove('hidden');
+      elements.actionBar.classList.remove('hidden');
+
+      // Load initial batch of 5 items
+      await loadPendingApprovals();
+    } else {
+      elements.loginSection.classList.remove('hidden');
+      elements.queueSection.classList.add('hidden');
+      elements.actionBar.classList.add('hidden');
+      hideLoading();
+
+      if (setupCode) {
+        showLoginError('รหัสยืนยันตัวตนไม่ถูกต้อง หรือถูกใช้งานไปแล้ว');
+      }
+    }
+  } catch (err) {
+    hideLoading();
+    showLoginError(err.message || 'ไม่สามารถเชื่อมต่อระบบได้');
+  }
+}
+
+async function handleLoginSubmit() {
+  const code = elements.setupCodeInput.value.trim();
+  if (!code) {
+    showLoginError('กรุณากรอกรหัสยืนยันตัวตน');
+    return;
+  }
+  await attemptLogin(state.lineUid, code);
+}
+
+function showLoginError(msg) {
+  elements.loginError.textContent = msg;
+  elements.loginError.classList.remove('hidden');
+}
+
+/**
+ * Fetch Pending Approvals (Limit = 5)
+ */
+async function loadPendingApprovals() {
+  showLoading('กำลังโหลดรายการรออนุมัติ...', 'ดึงข้อมูลทีละ 5 รายการ');
+  state.selectedTxIds.clear();
+  elements.selectAllCheckbox.checked = false;
+
+  try {
+    const res = await apiCall('getPendingApprovals', {
       approverName: state.approverName,
       offset: 0,
-      limit: CONFIG.PAGE_SIZE
+      limit: APP_CONFIG.BATCH_SIZE
     });
-    
-    if (res.status === 'success') {
-      state.transactions = res.data.items || [];
-      renderCards();
-    } else {
-      alert('โหลดข้อมูลไม่ได้: ' + res.message);
-    }
+
+    state.pendingItems = res.items || [];
+    state.totalPendingCount = res.total || 0;
+
+    renderQueue();
+    updateSummary();
   } catch (err) {
-    alert('เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่');
+    alert('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + err.message);
   } finally {
-    hideLoader();
+    hideLoading();
   }
 }
 
-// ─── RENDER ──────────────────────────────────────────────────────────────────
-function renderCards() {
-  els.transactionList.innerHTML = '';
-  
-  if (state.transactions.length === 0) {
-    els.emptyState.classList.remove('hidden');
-    els.bottomBar.classList.add('hidden');
+/**
+ * Render Queue Cards
+ */
+function renderQueue() {
+  elements.queueBadge.textContent = `รออนุมัติทั้งหมด ${state.totalPendingCount} รายการ`;
+  elements.cardsContainer.innerHTML = '';
+
+  if (state.pendingItems.length === 0) {
+    elements.emptyState.classList.remove('hidden');
+    elements.cardsContainer.classList.add('hidden');
     return;
   }
-  
-  els.emptyState.classList.add('hidden');
-  els.bottomBar.classList.remove('hidden');
 
-  state.transactions.forEach(tx => {
-    // Auto-select all by default
-    state.selectedIds.add(String(tx.Transaction_ID));
-    
-    const card = createCard(tx);
-    els.transactionList.appendChild(card);
-  });
-  
-  updateBottomBar();
-}
+  elements.emptyState.classList.add('hidden');
+  elements.cardsContainer.classList.remove('hidden');
 
-function createCard(tx) {
-  const div = document.createElement('div');
-  div.className = 'tx-card selected'; // Selected by default
-  div.dataset.txId = String(tx.Transaction_ID);
+  state.pendingItems.forEach(item => {
+    const card = document.createElement('div');
+    card.className = `trip-card ${state.selectedTxIds.has(item.Transaction_ID) ? 'selected' : ''}`;
+    card.dataset.id = item.Transaction_ID;
 
-  const dateStr  = tx.Req_Date ? new Date(tx.Req_Date).toLocaleDateString('th-TH') : '-';
-  const netTotal = Number(tx.Net_Total || 0).toLocaleString();
-
-  let detailsHtml = '';
-  try {
-    const trips = typeof tx.Trip_Details === 'string' ? JSON.parse(tx.Trip_Details) : tx.Trip_Details;
-    if (Array.isArray(trips) && trips.length > 0) {
-      detailsHtml = `<div class="trip-details">`;
-      trips.forEach((t, idx) => {
-        const km = Number(t.km || t.KM || 0).toLocaleString();
-        detailsHtml += `
-          <div class="trip-item">
-            <span class="trip-num">${idx + 1}</span>
-            <div class="trip-desc">
-              <div>${t.from || t.From || ''} → ${t.to || t.To || ''}</div>
-              <div class="trip-km">${km} กม.</div>
-            </div>
-          </div>`;
-      });
-      detailsHtml += `</div>`;
+    // Parse Trip Details JSON safely
+    let tripDetailsHtml = '';
+    try {
+      const trips = JSON.parse(item.Trip_Details || '[]');
+      if (Array.isArray(trips) && trips.length > 0) {
+        tripDetailsHtml = trips.map(t => `
+          <div class="trip-detail-item">
+            <span class="trip-route">📍 ${t.Origin || t.origin || 'ต้นทาง'} ➔ ${t.Destination || t.destination || 'ปลายทาง'}</span>
+            <span class="trip-distance">${t.Distance_KM || t.km || 0} กม.</span>
+          </div>
+        `).join('');
+      } else {
+        tripDetailsHtml = '<div class="trip-detail-item"><span class="trip-route">ไม่มีรายละเอียดเส้นทาง</span></div>';
+      }
+    } catch (e) {
+      tripDetailsHtml = '<div class="trip-detail-item"><span class="trip-route">เส้นทางย่อย</span></div>';
     }
-  } catch (e) {}
 
-  div.innerHTML = `
-    <div class="card-main">
+    const netTotal = parseFloat(item.Net_Total || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const reqDate = item.Req_Date ? new Date(item.Req_Date).toLocaleDateString('th-TH') : '-';
+
+    card.innerHTML = `
       <div class="card-top">
-        <div class="card-name">${tx.Req_Name || '-'}</div>
-        <div class="card-date">${dateStr}</div>
+        <div class="card-select">
+          <input type="checkbox" class="custom-checkbox card-checkbox" value="${item.Transaction_ID}" ${state.selectedTxIds.has(item.Transaction_ID) ? 'checked' : ''}>
+        </div>
+        <div class="card-main-info">
+          <div class="req-name">${escapeHtml(item.Req_Name || 'ไม่ระบุชื่อ')}</div>
+          <span class="site-badge">🏢 ${escapeHtml(item.Site_Name || 'ทั่วไป')}</span>
+          <div class="req-date">📅 วันที่: ${reqDate}</div>
+        </div>
       </div>
-      <div class="card-site"><i class="fa-solid fa-location-dot"></i> ${tx.Site_Name || '-'}</div>
-      <div class="card-amount">฿${netTotal}</div>
-      ${detailsHtml}
-      
-      <!-- Checkbox overlay -->
-      <div class="card-checkbox"><i class="fa-solid fa-check"></i></div>
-    </div>
-  `;
 
-  // Toggle selection on card click
-  div.addEventListener('click', () => {
-    const txId = div.dataset.txId;
-    if (state.selectedIds.has(txId)) {
-      state.selectedIds.delete(txId);
-      div.classList.remove('selected');
+      <div class="trip-details-box">
+        ${tripDetailsHtml}
+      </div>
+
+      <div class="card-financials">
+        <div class="fee-breakdown">
+          <span>ระยะทาง: ${item.Total_KM || 0} กม.</span>
+        </div>
+        <div class="net-total-box">
+          <div class="net-total-label">ยอดเบิกสุทธิ</div>
+          <div class="net-total-value">฿${netTotal}</div>
+        </div>
+      </div>
+    `;
+
+    // Click handler for card selection
+    const checkbox = card.querySelector('.card-checkbox');
+    checkbox.addEventListener('change', (e) => {
+      e.stopPropagation();
+      toggleSelectTx(item.Transaction_ID, checkbox.checked);
+    });
+
+    card.addEventListener('click', (e) => {
+      if (e.target !== checkbox) {
+        checkbox.checked = !checkbox.checked;
+        toggleSelectTx(item.Transaction_ID, checkbox.checked);
+      }
+    });
+
+    elements.cardsContainer.appendChild(card);
+  });
+}
+
+function toggleSelectTx(txId, isSelected) {
+  if (isSelected) {
+    state.selectedTxIds.add(txId);
+  } else {
+    state.selectedTxIds.delete(txId);
+  }
+  updateSummary();
+  updateCardStyles();
+}
+
+function handleSelectAllToggle(e) {
+  const isChecked = e.target.checked;
+  state.pendingItems.forEach(item => {
+    if (isChecked) {
+      state.selectedTxIds.add(item.Transaction_ID);
     } else {
-      state.selectedIds.add(txId);
-      div.classList.add('selected');
+      state.selectedTxIds.delete(item.Transaction_ID);
     }
-    updateBottomBar();
   });
 
-  return div;
+  const checkboxes = document.querySelectorAll('.card-checkbox');
+  checkboxes.forEach(cb => cb.checked = isChecked);
+
+  updateSummary();
+  updateCardStyles();
 }
 
-function updateBottomBar() {
-  const count = state.selectedIds.size;
-  els.selectedCountText.textContent = `เลือกแล้ว ${count} รายการ`;
-  
-  const hasSelection = count > 0;
-  els.btnBulkApprove.disabled = !hasSelection;
-  els.btnBulkReject.disabled = !hasSelection;
-}
-
-// ─── MODAL & ACTIONS ─────────────────────────────────────────────────────────
-els.btnBulkApprove.addEventListener('click', () => openConfirmModal('APPROVED'));
-els.btnBulkReject.addEventListener('click', () => openConfirmModal('REJECTED'));
-
-function openConfirmModal(action) {
-  state.pendingAction = action;
-  const count = state.selectedIds.size;
-
-  if (action === 'APPROVED') {
-    els.modalTitle.textContent   = 'ยืนยันการอนุมัติ';
-    els.modalTitle.style.color   = 'var(--primary-dark)';
-    els.modalMessage.textContent = `อนุมัติค่าเดินทางทั้งหมด ${count} รายการ ใช่หรือไม่?`;
-    els.btnModalConfirm.className = 'btn btn-success';
-    els.btnModalConfirm.textContent = '✓ อนุมัติ';
-  } else {
-    els.modalTitle.textContent   = 'ยืนยันการไม่อนุมัติ';
-    els.modalTitle.style.color   = 'var(--danger-color)';
-    els.modalMessage.textContent = `ปฏิเสธค่าเดินทางทั้งหมด ${count} รายการ ใช่หรือไม่?`;
-    els.btnModalConfirm.className = 'btn btn-danger';
-    els.btnModalConfirm.textContent = '✗ ไม่อนุมัติ';
-  }
-
-  els.confirmModal.classList.remove('hidden');
-  requestAnimationFrame(() => els.confirmModal.classList.add('active'));
-}
-
-function closeConfirmModal() {
-  els.confirmModal.classList.remove('active');
-  setTimeout(() => els.confirmModal.classList.add('hidden'), 200);
-  state.pendingAction = null;
-}
-
-async function executeBatchAction() {
-  const action = state.pendingAction;
-  if (!action || state.selectedIds.size === 0) return;
-  closeConfirmModal();
-
-  showLoader(action === 'APPROVED' ? 'กำลังอนุมัติ...' : 'กำลังปฏิเสธ...');
-  try {
-    const res = await callApi('approveTransactions', {
-      transactionIds: Array.from(state.selectedIds),
-      approverName:   state.approverName,
-      status:         action
-    });
-    
-    if (res.status === 'success') {
-      // Clear UI visually for a split second before re-fetching
-      state.selectedIds.forEach(id => {
-        const card = els.transactionList.querySelector(`[data-tx-id="${id}"]`);
-        if (card) {
-          card.style.opacity = '0';
-          card.style.transform = 'scale(0.9)';
-        }
-      });
-      
-      // Fetch the next batch immediately
-      setTimeout(() => fetchTop5Pending(), 300);
+function updateCardStyles() {
+  document.querySelectorAll('.trip-card').forEach(card => {
+    const id = card.dataset.id;
+    if (state.selectedTxIds.has(id)) {
+      card.classList.add('selected');
     } else {
-      alert('เกิดข้อผิดพลาด: ' + res.message);
+      card.classList.remove('selected');
     }
-  } catch (err) {
-    alert('เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่');
-  } finally {
-    // Note: hideLoader() will be handled by fetchTop5Pending() if successful,
-    // but in case of error, we should hide it here.
-    if (!state.pendingAction) hideLoader(); 
+  });
+}
+
+function updateSummary() {
+  const count = state.selectedTxIds.size;
+  let totalAmount = 0;
+
+  state.pendingItems.forEach(item => {
+    if (state.selectedTxIds.has(item.Transaction_ID)) {
+      totalAmount += parseFloat(item.Net_Total || 0);
+    }
+  });
+
+  elements.selectedCount.textContent = count;
+  elements.selectedAmount.textContent = '฿' + totalAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  elements.btnApprove.disabled = count === 0;
+  elements.btnReject.disabled = count === 0;
+}
+
+/**
+ * Handle Approval/Rejection in Batches of 5 (ชุดละ 5 รายการ)
+ */
+async function handleApprovalAction(status) {
+  const selectedArray = Array.from(state.selectedTxIds);
+  if (selectedArray.length === 0) return;
+
+  const actionText = status === 'APPROVED' ? 'อนุมัติ' : 'ปฏิเสธ';
+  if (!confirm(`คุณต้องการ ${actionText} รายการที่เลือกจำนวน ${selectedArray.length} รายการ หรือไม่?`)) {
+    return;
+  }
+
+  // Chunk selected IDs into batches of max 5
+  const chunks = [];
+  for (let i = 0; i < selectedArray.length; i += APP_CONFIG.BATCH_SIZE) {
+    chunks.push(selectedArray.slice(i, i + APP_CONFIG.BATCH_SIZE));
+  }
+
+  let totalProcessed = 0;
+  let hasError = false;
+
+  for (let cIndex = 0; cIndex < chunks.length; cIndex++) {
+    const currentChunk = chunks[cIndex];
+    showLoading(
+      `กำลัง${actionText}ชุดที่ ${cIndex + 1}/${chunks.length} (${currentChunk.length} รายการ)...`,
+      'กำลังอัปเดตลง Google Sheets และล้างแคช'
+    );
+
+    try {
+      const res = await apiCall('approveTransactions', {
+        transactionIds: currentChunk,
+        approverName: state.approverName,
+        status: status
+      });
+
+      totalProcessed += res.processedCount || 0;
+    } catch (err) {
+      hasError = true;
+      alert(`เกิดข้อผิดพลาดในชุดที่ ${cIndex + 1}: ` + err.message);
+      break;
+    }
+  }
+
+  if (!hasError) {
+    // Re-fetch remaining pending approvals automatically (next batch of 5)
+    await loadPendingApprovals();
+  } else {
+    hideLoading();
   }
 }
 
-els.btnModalConfirm.addEventListener('click', executeBatchAction);
-els.btnModalCancel.addEventListener('click',  closeConfirmModal);
-els.confirmModal.addEventListener('click', (e) => {
-  if (e.target === els.confirmModal) closeConfirmModal();
-});
-els.btnRefreshEmpty.addEventListener('click', fetchTop5Pending);
+// Helpers
+function showLoading(msg, subtext = 'โปรดรอสักครู่ ห้ามปิดหน้าจอ') {
+  elements.loadingMessage.textContent = msg;
+  elements.loadingSubtext.textContent = subtext;
+  elements.loadingOverlay.classList.remove('hidden');
+}
 
-// ─── START ───────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', init);
+function hideLoading() {
+  elements.loadingOverlay.classList.add('hidden');
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}

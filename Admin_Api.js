@@ -27,7 +27,7 @@ const AdminApi = {
           result = AdminService.handleLogin(payload.lineUid, payload.setupCode);
           break;
         case 'getPendingApprovals':
-          result = AdminService.getPendingApprovals(payload.approverName);
+          result = AdminService.getPendingApprovals(payload.approverName, payload.offset, payload.limit);
           break;
         case 'approveTransactions':
           result = AdminService.approveTransactions(payload.transactionIds, payload.approverName, payload.status);

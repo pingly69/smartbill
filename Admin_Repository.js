@@ -65,7 +65,9 @@ const AdminRepository = {
    */
   getPendingTransactions: function(approverName) {
     const sheet = this._getSpreadsheet().getSheetByName(CONFIG.SHEETS.TRANSACTIONS);
-    const data = sheet.getDataRange().getValues();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+    const data = sheet.getRange(1, 1, lastRow, sheet.getLastColumn()).getValues();
     const headers = data[0];
     
     const idxStatus = headers.indexOf('Status');
@@ -75,10 +77,9 @@ const AdminRepository = {
     
     // Start from row 1 (skip headers)
     for (let i = 1; i < data.length; i++) {
-      if (!data[i][0]) continue; // Skip empty rows to improve performance
+      if (!data[i][0]) continue; // Skip empty rows
       const row = data[i];
       if (row[idxStatus] === 'PENDING' && row[idxApprover] === approverName) {
-        // Map array to object based on headers
         const obj = {};
         for (let j = 0; j < headers.length; j++) {
           obj[headers[j]] = row[j];
@@ -87,7 +88,7 @@ const AdminRepository = {
       }
     }
     
-    // Sort by Date descending (assuming newest first is better for approval)
+    // Sort by Date descending
     results.sort((a, b) => new Date(b.Req_Date) - new Date(a.Req_Date));
     
     return results;
