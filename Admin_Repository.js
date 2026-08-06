@@ -68,6 +68,7 @@ const AdminRepository = {
     
     // Start from row 1 (skip headers)
     for (let i = 1; i < data.length; i++) {
+      if (!data[i][0]) continue; // Skip empty rows to improve performance
       const row = data[i];
       if (row[idxStatus] === 'PENDING' && row[idxApprover] === approverName) {
         // Map array to object based on headers

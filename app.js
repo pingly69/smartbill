@@ -7,7 +7,7 @@ const CONFIG = {
     // ⚠️ Replace this with the URL you get after deploying your GAS backend
     API_URL: 'https://script.google.com/macros/s/AKfycbzgiozlTEfJcN9pSH9cYtIabYNy_J7DyjyE0P6tMB8rkki-7kPbslsFw2qHOB1G5BGIUg/exec',
     LIFF_ID: '2009016720-pVeqpTCP', // Same as backend
-    API_TIMEOUT_MS: 30000, // 30 seconds
+    API_TIMEOUT_MS: 60000, // 60 seconds
     PAGE_SIZE: 10
 };
 
@@ -292,7 +292,7 @@ async function callApi(action, payload, retryCount = 0) {
         clearTimeout(timeoutId);
         
         if (error.name === 'AbortError') {
-            throw new Error("การเชื่อมต่อหมดเวลา (Timeout 30s) กรุณาลองใหม่");
+            throw new Error("การเชื่อมต่อหมดเวลา (Timeout 60s) กรุณาลองใหม่");
         }
         
         // Auto-Retry mechanism (Retry once after 2 seconds)
