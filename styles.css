@@ -1,388 +1,256 @@
 :root {
-    --primary-color: #00B900; /* LINE Green */
+    --primary:      #00B900;
     --primary-dark: #009900;
-    --danger-color: #ff3b30;
-    --danger-dark: #d63026;
-    --bg-color: #f5f7fa;
-    --card-bg: #ffffff;
-    --text-main: #1c1c1e;
-    --text-muted: #8e8e93;
-    --border-color: #e5e5ea;
-    --shadow-sm: 0 2px 8px rgba(0,0,0,0.05);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
-    --shadow-lg: 0 8px 24px rgba(0,0,0,0.15);
-    --border-radius: 12px;
-    --transition-speed: 0.2s;
+    --danger:       #ff3b30;
+    --danger-dark:  #d63026;
+    --bg:           #f0f2f5;
+    --card-bg:      #ffffff;
+    --text:         #1c1c1e;
+    --text-muted:   #8e8e93;
+    --border:       #e5e5ea;
+    --radius:       14px;
+    --shadow:       0 2px 12px rgba(0,0,0,0.08);
+    --speed:        0.2s;
 }
 
-* {
-    margin: 0;
-    padding: 0;
+/* ─── RESET ─────────────────────────────────────────────────────── */
+*, *::before, *::after {
+    margin: 0; padding: 0;
     box-sizing: border-box;
     font-family: 'Sarabun', 'Inter', sans-serif;
-}
-
-body {
-    background-color: var(--bg-color);
-    color: var(--text-main);
-    -webkit-font-smoothing: antialiased;
-    padding-bottom: 80px; /* Space for FAB */
-    /* ป้องกัน native text-selection toolbar บนมือถือโผล่มาทับปุ่ม */
+    /* ป้องกัน text selection toolbar บนมือถือ */
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
 }
-
-/* Utilities */
+input, textarea {
+    -webkit-user-select: text;
+    user-select: text;
+}
+body {
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+}
 .hidden { display: none !important; }
-.btn {
-    padding: 12px 20px;
-    border-radius: 8px;
-    border: none;
-    font-weight: 600;
-    font-size: 16px;
-    cursor: pointer;
-    transition: all var(--transition-speed) ease;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-.btn:active { transform: scale(0.98); }
-.btn-primary { background-color: var(--primary-color); color: white; }
-.btn-primary:active { background-color: var(--primary-dark); }
-.btn-success { background-color: var(--primary-color); color: white; }
-.btn-danger { background-color: var(--danger-color); color: white; }
-.btn-secondary { background-color: #e5e5ea; color: var(--text-main); }
-.btn-outline { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
 
-/* Loader Overlay */
+/* ─── BUTTONS ───────────────────────────────────────────────────── */
+.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 12px 20px; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: transform var(--speed), opacity var(--speed);
+}
+.btn:active { transform: scale(0.96); opacity: 0.85; }
+.btn-primary  { background: var(--primary);  color: #fff; }
+.btn-success  { background: var(--primary);  color: #fff; }
+.btn-danger   { background: var(--danger);   color: #fff; }
+.btn-secondary { background: #e5e5ea;        color: var(--text); }
+.btn-outline  {
+    background: transparent;
+    border: 1.5px solid var(--border);
+    color: var(--text);
+}
+
+/* ─── LOADER OVERLAY ────────────────────────────────────────────── */
 .overlay {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(3px);
     z-index: 9999;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.3s ease;
+    display: flex; justify-content: center; align-items: center;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.25s;
 }
-.overlay.active {
-    opacity: 1;
-    visibility: visible;
-}
-.loader-content {
-    background: white;
-    padding: 24px 32px;
-    border-radius: 16px;
-    text-align: center;
-    box-shadow: var(--shadow-lg);
+.overlay.active { opacity: 1; visibility: visible; }
+.loader-box {
+    background: #fff; padding: 28px 36px;
+    border-radius: 16px; text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
 }
 .spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid var(--primary-color);
+    width: 38px; height: 38px; margin: 0 auto 14px;
+    border: 4px solid #eee;
+    border-top-color: var(--primary);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 16px auto;
+    animation: spin 0.8s linear infinite;
 }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* Screens */
-.screen {
-    min-height: 100vh;
-    width: 100%;
-}
+/* ─── SCREENS ───────────────────────────────────────────────────── */
+.screen { min-height: 100vh; width: 100%; }
 
-/* Login */
-.login-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    padding: 24px;
+/* ─── LOGIN ─────────────────────────────────────────────────────── */
+.login-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 100vh; padding: 32px 24px;
+    gap: 32px;
 }
-.logo-area {
-    text-align: center;
-    margin-bottom: 40px;
-}
-.logo-icon {
-    font-size: 64px;
-    color: var(--primary-color);
-    margin-bottom: 16px;
-}
+.logo-area { text-align: center; }
+.logo-icon { font-size: 60px; color: var(--primary); }
+.logo-area h1 { font-size: 24px; font-weight: 700; margin-top: 12px; }
+.logo-area p  { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+
 .setup-form {
-    width: 100%;
-    max-width: 320px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    width: 100%; max-width: 320px;
+    display: flex; flex-direction: column; gap: 12px;
 }
 .setup-form input {
-    padding: 14px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    font-size: 16px;
-    text-align: center;
+    padding: 14px; border-radius: 10px;
+    border: 1.5px solid var(--border);
+    font-size: 16px; text-align: center; outline: none;
+    transition: border-color var(--speed);
 }
-.setup-form input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(0, 185, 0, 0.2);
-}
-.instruction {
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 14px;
-    margin-bottom: 8px;
-}
-.error-message {
-    color: var(--danger-color);
-    margin-top: 16px;
-    font-size: 14px;
-    text-align: center;
-}
+.setup-form input:focus { border-color: var(--primary); }
+.login-hint { font-size: 13px; color: var(--text-muted); text-align: center; }
+.error-msg  { color: var(--danger); font-size: 13px; text-align: center; }
 
-/* Dashboard Header */
+/* ─── HEADER ────────────────────────────────────────────────────── */
 .app-header {
-    background: var(--card-bg);
-    padding: 16px 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    box-shadow: var(--shadow-sm);
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    background: #fff;
+    padding: 14px 18px;
+    display: flex; justify-content: space-between; align-items: center;
+    box-shadow: 0 1px 0 var(--border);
+    position: sticky; top: 0; z-index: 100;
 }
-.header-left h2 {
-    font-size: 20px;
-    color: var(--text-main);
-}
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-.user-name {
-    font-weight: 600;
-    font-size: 14px;
-}
+.header-title { font-size: 18px; font-weight: 700; }
+.header-title i { color: var(--primary); margin-right: 6px; }
+.header-user  { display: flex; align-items: center; gap: 8px; }
+.user-name    { font-size: 13px; font-weight: 600; }
 .avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
+    width: 34px; height: 34px; border-radius: 50%;
     object-fit: cover;
 }
 
-/* Content Area */
+/* ─── CONTENT ───────────────────────────────────────────────────── */
 .content-area {
     padding: 16px;
     max-width: 600px;
     margin: 0 auto;
+    padding-bottom: 32px;
 }
 
+/* ─── EMPTY STATE ───────────────────────────────────────────────── */
 .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
-    color: var(--text-muted);
-    gap: 16px;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 64px 20px;
+    color: var(--text-muted); gap: 14px;
 }
-.empty-state i {
-    font-size: 48px;
-    opacity: 0.5;
-}
+.empty-state i { font-size: 52px; opacity: 0.4; }
+.empty-state p { font-size: 15px; }
 
-/* Transaction Card */
+/* ─── TRANSACTION CARD ──────────────────────────────────────────── */
 .tx-card {
     background: var(--card-bg);
-    border-radius: var(--border-radius);
-    padding: 16px;
-    margin-bottom: 12px;
-    box-shadow: var(--shadow-sm);
-    display: flex;
-    gap: 12px;
-    transition: box-shadow var(--transition-speed) ease;
-    border: 1px solid transparent;
-    /* ป้องกัน text selection ขณะ tap บน card */
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 14px;
+    overflow: hidden;
+    transition: transform 0.3s ease, opacity 0.3s ease;
 }
-.tx-card.selected {
-    border-color: var(--primary-color);
-    background-color: rgba(0, 185, 0, 0.02);
+.tx-card.card-removing {
+    transform: translateX(60px);
+    opacity: 0;
 }
-.card-checkbox {
-    padding-top: 4px;
-}
-.custom-checkbox {
-    width: 24px;
-    height: 24px;
-    cursor: pointer;
-    accent-color: var(--primary-color);
-    /* อนุญาตให้ checkbox interact ได้ปกติ */
-    -webkit-user-select: auto;
-    user-select: auto;
-}
-.card-content {
-    flex: 1;
-    cursor: pointer; /* Click to expand details */
-}
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 8px;
-}
-.req-name {
-    font-weight: 700;
-    font-size: 16px;
-    color: var(--text-main);
-}
-.req-date {
-    font-size: 12px;
-    color: var(--text-muted);
-}
-.site-name {
-    font-size: 14px;
-    color: var(--text-main);
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.site-name i { color: var(--primary-color); }
 
-.amount-display {
-    text-align: right;
-    margin-top: 8px;
+.card-main {
+    padding: 16px;
 }
-.net-total {
-    font-size: 20px;
-    font-weight: 800;
+.card-top {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 6px;
+}
+.card-name { font-size: 16px; font-weight: 700; color: var(--text); }
+.card-date { font-size: 12px; color: var(--text-muted); }
+.card-site {
+    font-size: 13px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 5px;
+    margin-bottom: 10px;
+}
+.card-site i { color: var(--primary); font-size: 12px; }
+.card-amount {
+    font-size: 22px; font-weight: 800;
+    color: var(--primary-dark);
+    text-align: right;
+    margin-bottom: 10px;
+}
+
+/* ─── TRIP DETAILS ───────────────────────────────────────────────── */
+.trip-details {
+    border-top: 1px dashed var(--border);
+    padding-top: 10px;
+    display: flex; flex-direction: column; gap: 6px;
+}
+.trip-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    font-size: 12px; color: var(--text-muted);
+}
+.trip-num {
+    background: var(--primary); color: #fff;
+    border-radius: 50%; width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; flex-shrink: 0;
+    margin-top: 1px;
+}
+.trip-km { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+
+/* ─── CARD ACTION BUTTONS ───────────────────────────────────────── */
+.card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--border);
+}
+.btn-card-reject,
+.btn-card-approve {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 14px 8px;
+    font-size: 14px; font-weight: 600;
+    border: none; cursor: pointer;
+    transition: background var(--speed), transform var(--speed);
+}
+.btn-card-reject:active,
+.btn-card-approve:active { transform: scale(0.97); }
+
+.btn-card-reject {
+    background: #fff5f5;
+    color: var(--danger);
+    border-right: 1px solid var(--border);
+}
+.btn-card-reject:active  { background: #ffe5e5; }
+
+.btn-card-approve {
+    background: #f0fff0;
     color: var(--primary-dark);
 }
-.dist-total {
-    font-size: 12px;
-    color: var(--text-muted);
-}
+.btn-card-approve:active { background: #d0f5d0; }
 
-/* Expandable Details */
-.card-details {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px dashed var(--border-color);
-    font-size: 13px;
-    animation: slideDown 0.3s ease;
-}
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-.trip-route {
-    background: #f9f9f9;
-    padding: 8px;
-    border-radius: 6px;
-    margin-bottom: 8px;
-}
-.route-item {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-}
+/* ─── LOAD MORE ──────────────────────────────────────────────────── */
+.load-more-wrap { text-align: center; margin: 8px 0 20px; }
 
-/* Load More */
-.load-more-container {
-    text-align: center;
-    margin: 20px 0;
-}
-
-/* FAB Area */
-.fab-area {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 16px;
-    background: linear-gradient(to top, rgba(255,255,255,1) 70%, rgba(255,255,255,0));
-    display: flex;
-    justify-content: center;
-    /* pointer-events: none เสมอ เพื่อไม่ให้ gradient ดัก click ของ card ด้านล่าง */
-    pointer-events: none;
-    z-index: 9500;
-    transform: translateY(100%);
-    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.fab-area.active {
-    transform: translateY(0);
-    /* ไม่ set pointer-events: auto ที่นี่! ให้ .fab-actions เป็นตัว clickable แทน */
-}
-.fab-actions {
-    display: flex;
-    gap: 12px;
-    background: white;
-    padding: 12px 16px;
-    border-radius: 30px;
-    box-shadow: var(--shadow-lg);
-    border: 1px solid var(--border-color);
-    /* เฉพาะ pill เท่านั้นที่ clickable ไม่ใช่ทั้ง div */
-    pointer-events: auto;
-}
-.fab-btn {
-    border-radius: 20px;
-    padding: 10px 24px;
-    font-size: 15px;
-}
-
-/* Modal */
+/* ─── MODAL ──────────────────────────────────────────────────────── */
 .modal {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.5);
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
     z-index: 9000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.2s ease;
+    display: flex; justify-content: center; align-items: center;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
 }
-.modal.active {
-    opacity: 1;
-    visibility: visible;
-}
-.modal-content {
-    background: white;
-    width: 90%;
-    max-width: 340px;
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: var(--shadow-lg);
-    transform: scale(0.95);
+.modal.active { opacity: 1; visibility: visible; }
+
+.modal-box {
+    background: #fff;
+    width: 88%; max-width: 340px;
+    border-radius: 18px;
+    padding: 26px 22px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+    transform: scale(0.92);
     transition: transform 0.2s ease;
 }
-.modal.active .modal-content {
-    transform: scale(1);
-}
-.modal h3 {
-    margin-bottom: 12px;
-    color: var(--text-main);
-}
-.modal p {
-    color: var(--text-muted);
-    margin-bottom: 24px;
-    font-size: 15px;
-}
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-}
+.modal.active .modal-box { transform: scale(1); }
+
+.modal-box h3    { font-size: 18px; margin-bottom: 10px; }
+.modal-box p     { font-size: 14px; color: var(--text-muted); margin-bottom: 22px; line-height: 1.5; }
+.modal-actions   { display: flex; gap: 10px; justify-content: flex-end; }

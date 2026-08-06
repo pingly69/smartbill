@@ -1,493 +1,388 @@
 /**
- * app.js - Frontend Logic for Trip1Day Approver
+ * app.js v2.0 — Trip1Day Approver
+ * Redesigned: Per-card Approve/Reject buttons (no FAB, no bulk select)
+ * Fixes: text selection, pointer-events, modal hidden bug
  */
 
-// Configuration
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
 const CONFIG = {
-    // ⚠️ Replace this with the URL you get after deploying your GAS backend
-    API_URL: 'https://script.google.com/macros/s/AKfycbzgiozlTEfJcN9pSH9cYtIabYNy_J7DyjyE0P6tMB8rkki-7kPbslsFw2qHOB1G5BGIUg/exec',
-    LIFF_ID: '2009016720-pVeqpTCP', // Same as backend
-    API_TIMEOUT_MS: 60000, // 60 seconds
-    PAGE_SIZE: 5
+  LIFF_ID: '2009016720-pVeqpTCP',
+  API_URL: 'https://script.google.com/macros/s/AKfycbzgiozlTEfJcN9pSH9cYtIabYNy_J7DyjyE0P6tMB8rkki-7kPbslsFw2qHOB1G5BGIUg/exec',
+  PAGE_SIZE: 5
 };
 
-// State
+// ─── STATE ───────────────────────────────────────────────────────────────────
 const state = {
-    lineUid: null,
-    approverName: null,
-    transactions: [],   // items in current page buffer
-    totalCount: 0,      // total pending count from server
-    serverOffset: 0,    // how many items we've already loaded from server
-    displayedCount: 0,
-    selectedIds: new Set(),
-    isProcessing: false,
-    currentAction: null // 'APPROVED' or 'REJECTED'
+  lineUid: null,
+  approverName: null,
+  transactions: [],
+  totalCount: 0,
+  serverOffset: 0,
+  displayedCount: 0,
+  pendingAction: null  // { txId, action: 'APPROVED'|'REJECTED' }
 };
 
-// DOM Elements
+// ─── DOM REFS ────────────────────────────────────────────────────────────────
 const els = {
-    loader: document.getElementById('globalLoader'),
-    loaderText: document.getElementById('loaderText'),
-    loginScreen: document.getElementById('loginScreen'),
-    dashboardScreen: document.getElementById('dashboardScreen'),
-    setupForm: document.getElementById('setupForm'),
-    setupCodeInput: document.getElementById('setupCodeInput'),
-    btnSetup: document.getElementById('btnSetup'),
-    loginMessage: document.getElementById('loginMessage'),
-    approverNameDisplay: document.getElementById('approverNameDisplay'),
-    userAvatar: document.getElementById('userAvatar'),
-    transactionList: document.getElementById('transactionList'),
-    emptyState: document.getElementById('emptyState'),
-    btnRefreshEmpty: document.getElementById('btnRefreshEmpty'),
-    loadMoreContainer: document.getElementById('loadMoreContainer'),
-    btnLoadMore: document.getElementById('btnLoadMore'),
-    fabArea: document.getElementById('fabArea'),
-    selectedCount: document.getElementById('selectedCount'),
-    btnBulkApprove: document.getElementById('btnBulkApprove'),
-    btnBulkReject: document.getElementById('btnBulkReject'),
-    confirmModal: document.getElementById('confirmModal'),
-    modalTitle: document.getElementById('modalTitle'),
-    modalMessage: document.getElementById('modalMessage'),
-    btnModalCancel: document.getElementById('btnModalCancel'),
-    btnModalConfirm: document.getElementById('btnModalConfirm')
+  globalLoader:        document.getElementById('globalLoader'),
+  loaderText:          document.getElementById('loaderText'),
+  loginScreen:         document.getElementById('loginScreen'),
+  setupForm:           document.getElementById('setupForm'),
+  setupCodeInput:      document.getElementById('setupCodeInput'),
+  btnSetup:            document.getElementById('btnSetup'),
+  loginMessage:        document.getElementById('loginMessage'),
+  dashboardScreen:     document.getElementById('dashboardScreen'),
+  approverNameDisplay: document.getElementById('approverNameDisplay'),
+  userAvatar:          document.getElementById('userAvatar'),
+  transactionList:     document.getElementById('transactionList'),
+  emptyState:          document.getElementById('emptyState'),
+  btnRefreshEmpty:     document.getElementById('btnRefreshEmpty'),
+  loadMoreContainer:   document.getElementById('loadMoreContainer'),
+  btnLoadMore:         document.getElementById('btnLoadMore'),
+  confirmModal:        document.getElementById('confirmModal'),
+  modalTitle:          document.getElementById('modalTitle'),
+  modalMessage:        document.getElementById('modalMessage'),
+  btnModalCancel:      document.getElementById('btnModalCancel'),
+  btnModalConfirm:     document.getElementById('btnModalConfirm')
 };
 
-/**
- * Initialize System
- */
+// ─── LOADER ──────────────────────────────────────────────────────────────────
+function showLoader(msg) {
+  els.loaderText.textContent = msg || 'กำลังโหลด...';
+  els.globalLoader.classList.add('active');
+}
+function hideLoader() {
+  els.globalLoader.classList.remove('active');
+}
+
+// ─── API ─────────────────────────────────────────────────────────────────────
+async function callApi(action, payload) {
+  const body = JSON.stringify({ action, payload });
+  const res = await fetch(CONFIG.API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body
+  });
+  const text = await res.text();
+  return JSON.parse(text);
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
 async function init() {
-    showLoader('กำลังเชื่อมต่อระบบ...');
+  showLoader('กำลังเชื่อมต่อระบบ...');
 
-    // 🔥 GAS Warm-up: ยิง ping ไปปลุก GAS server ล่วงหน้า (background, ไม่ await)
-    // เพื่อลด Cold Start delay ขณะ LIFF กำลัง init ไปพร้อมกัน
-    callApi('ping', {}).catch(() => {}); // ไม่ต้องรอ ไม่ต้องสนใจ error
-    
-    // In local dev without LIFF ID, we can mock it
-    if (CONFIG.LIFF_ID === 'รอ update ใหม่') {
-        alert("คำเตือน: ยังไม่ได้ใส่ LIFF ID\n(โปรดตั้งค่าใน app.js ตอนขึ้นระบบจริง)");
-        // Mock Login for testing
-        state.lineUid = 'Udummy1234567890';
-        await checkLogin();
-        return;
-    }
+  // 🔥 GAS Warm-up: ping ก่อนล่วงหน้าขณะ LIFF init (ลด cold start)
+  callApi('ping', {}).catch(() => {});
 
-    try {
-        await liff.init({ liffId: CONFIG.LIFF_ID });
-        if (!liff.isLoggedIn()) {
-            liff.login();
-        } else {
-            const profile = await liff.getProfile();
-            state.lineUid = profile.userId;
-            els.userAvatar.src = profile.pictureUrl;
-            els.userAvatar.classList.remove('hidden');
-            await checkLogin();
-        }
-    } catch (err) {
-        console.error("LIFF Init Error:", err);
-        hideLoader();
-        alert("ไม่สามารถเชื่อมต่อ LINE ได้");
-    }
-}
-
-/**
- * Check Login Status with Backend
- */
-async function checkLogin(setupCode = null) {
-    showLoader('ตรวจสอบสิทธิ์...');
-    
-    try {
-        // If we already have the name cached in session storage, skip API call (SA Rule)
-        if (!setupCode) {
-            const cachedName = sessionStorage.getItem('approverName');
-            if (cachedName) {
-                state.approverName = cachedName;
-                showDashboard();
-                return;
-            }
-        }
-
-        const res = await callApi('login', { 
-            lineUid: state.lineUid,
-            setupCode: setupCode 
-        });
-
-        if (res.status === 'success' && res.data.isLoggedIn) {
-            state.approverName = res.data.approverName;
-            sessionStorage.setItem('approverName', state.approverName);
-            showDashboard();
-        } else {
-            showLogin(res.message);
-        }
-    } catch (error) {
-        showLogin("ข้อผิดพลาด: " + error.message);
-    }
-}
-
-/**
- * Fetch Pending Transactions (first page)
- */
-async function fetchTransactions() {
-    showLoader('กำลังดึงข้อมูล...');
-    try {
-        const res = await callApi('getPendingApprovals', {
-            approverName: state.approverName,
-            offset: 0,
-            limit: CONFIG.PAGE_SIZE
-        });
-        if (res.status === 'success') {
-            // response ใหม่มี { total, offset, limit, hasMore, items }
-            const pageData = res.data;
-            state.transactions = pageData.items;
-            state.totalCount   = pageData.total;
-            state.serverOffset = pageData.items.length;
-            state.displayedCount = 0;
-            state.selectedIds.clear();
-            els.transactionList.innerHTML = '';
-            updateFab();
-            renderNextBatch(pageData.hasMore);
-        } else {
-            alert("Error: " + res.message);
-        }
-    } catch (error) {
-        alert("ข้อผิดพลาด: " + error.message);
-    } finally {
-        hideLoader();
-    }
-}
-
-/**
- * Load more transactions from server (next page)
- */
-async function fetchMoreTransactions() {
-    showLoader('โหลดเพิ่มเติม...');
-    try {
-        const res = await callApi('getPendingApprovals', {
-            approverName: state.approverName,
-            offset: state.serverOffset,
-            limit: CONFIG.PAGE_SIZE
-        });
-        if (res.status === 'success') {
-            const pageData = res.data;
-            // Append new items to the buffer
-            state.transactions = state.transactions.concat(pageData.items);
-            state.serverOffset += pageData.items.length;
-            renderNextBatch(pageData.hasMore);
-        } else {
-            alert("Error: " + res.message);
-        }
-    } catch (error) {
-        alert("ข้อผิดพลาด: " + error.message);
-    } finally {
-        hideLoader();
-    }
-}
-
-/**
- * Render Cards from current local buffer
- * @param {boolean} serverHasMore - whether server still has more items beyond current buffer
- */
-function renderNextBatch(serverHasMore) {
-    const start = state.displayedCount;
-    const end = Math.min(start + CONFIG.PAGE_SIZE, state.transactions.length);
-    
-    if (state.transactions.length === 0 && !serverHasMore) {
-        els.emptyState.classList.remove('hidden');
-        els.loadMoreContainer.classList.add('hidden');
-        return;
-    }
-    
-    els.emptyState.classList.add('hidden');
-
-    for (let i = start; i < end; i++) {
-        const tx = state.transactions[i];
-        const card = createCard(tx);
-        els.transactionList.appendChild(card);
-    }
-    
-    state.displayedCount = end;
-    
-    // Show "load more" if there are more items in local buffer OR more on server
-    const localHasMore = state.displayedCount < state.transactions.length;
-    if (localHasMore || serverHasMore) {
-        els.loadMoreContainer.classList.remove('hidden');
-        // Store whether next click should fetch from server
-        els.btnLoadMore.dataset.fetchServer = (!localHasMore && serverHasMore) ? '1' : '0';
+  if (CONFIG.LIFF_ID === 'YOUR_LIFF_ID') {
+    state.lineUid = 'Udummy1234567890';
+    await checkLogin();
+    return;
+  }
+  try {
+    await liff.init({ liffId: CONFIG.LIFF_ID });
+    if (!liff.isLoggedIn()) {
+      liff.login();
     } else {
-        els.loadMoreContainer.classList.add('hidden');
+      const profile = await liff.getProfile();
+      state.lineUid = profile.userId;
+      els.userAvatar.src = profile.pictureUrl;
+      els.userAvatar.classList.remove('hidden');
+      await checkLogin();
     }
+  } catch (err) {
+    hideLoader();
+    alert('ไม่สามารถเชื่อมต่อ LINE ได้');
+  }
+}
+
+// ─── LOGIN ───────────────────────────────────────────────────────────────────
+async function checkLogin() {
+  showLoader('กำลังตรวจสอบสิทธิ์...');
+
+  // ใช้ session cache ถ้ามี (ลด API call)
+  const cached = sessionStorage.getItem('approverName');
+  if (cached) {
+    state.approverName = cached;
+    showDashboard();
+    return;
+  }
+
+  try {
+    const res = await callApi('login', { lineUid: state.lineUid });
+    if (res.status === 'success' && res.data.isLoggedIn) {
+      state.approverName = res.data.approverName;
+      sessionStorage.setItem('approverName', state.approverName);
+      showDashboard();
+    } else {
+      hideLoader();
+      els.loginScreen.classList.remove('hidden');
+      els.setupForm.classList.remove('hidden');
+    }
+  } catch (err) {
+    hideLoader();
+    els.loginScreen.classList.remove('hidden');
+    els.loginMessage.textContent = 'เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่';
+    els.loginMessage.classList.remove('hidden');
+  }
+}
+
+// Setup Code
+els.btnSetup.addEventListener('click', async () => {
+  const code = els.setupCodeInput.value.trim();
+  if (!code) return;
+  showLoader('กำลังยืนยันตัวตน...');
+  try {
+    const res = await callApi('login', { lineUid: state.lineUid, setupCode: code });
+    if (res.status === 'success' && res.data.isLoggedIn) {
+      state.approverName = res.data.approverName;
+      sessionStorage.setItem('approverName', state.approverName);
+      showDashboard();
+    } else {
+      hideLoader();
+      els.loginMessage.textContent = res.message || 'รหัสไม่ถูกต้อง';
+      els.loginMessage.classList.remove('hidden');
+    }
+  } catch (err) {
+    hideLoader();
+    els.loginMessage.textContent = 'เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่';
+    els.loginMessage.classList.remove('hidden');
+  }
+});
+
+// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+function showDashboard() {
+  els.loginScreen.classList.add('hidden');
+  els.dashboardScreen.classList.remove('hidden');
+  els.approverNameDisplay.textContent = state.approverName;
+  fetchTransactions();
+}
+
+async function fetchTransactions() {
+  showLoader('กำลังดึงข้อมูล...');
+  try {
+    const res = await callApi('getPendingApprovals', {
+      approverName: state.approverName,
+      offset: 0,
+      limit: CONFIG.PAGE_SIZE
+    });
+    if (res.status === 'success') {
+      const pageData = res.data;
+      state.transactions  = pageData.items;
+      state.totalCount    = pageData.total;
+      state.serverOffset  = pageData.items.length;
+      state.displayedCount = 0;
+      els.transactionList.innerHTML = '';
+      renderNextBatch(pageData.hasMore);
+    } else {
+      alert('โหลดข้อมูลไม่ได้: ' + res.message);
+    }
+  } catch (err) {
+    alert('เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่');
+  } finally {
+    hideLoader();
+  }
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function renderNextBatch(serverHasMore) {
+  const start = state.displayedCount;
+  const end   = Math.min(start + CONFIG.PAGE_SIZE, state.transactions.length);
+
+  for (let i = start; i < end; i++) {
+    els.transactionList.appendChild(createCard(state.transactions[i]));
+  }
+  state.displayedCount = end;
+
+  const localHasMore  = state.displayedCount < state.transactions.length;
+  const hasMore       = localHasMore || serverHasMore;
+
+  // Empty state
+  if (state.transactions.length === 0 && !serverHasMore) {
+    els.emptyState.classList.remove('hidden');
+  } else {
+    els.emptyState.classList.add('hidden');
+  }
+
+  // Load more button
+  if (hasMore) {
+    els.loadMoreContainer.classList.remove('hidden');
+    els.btnLoadMore.dataset.fetchServer = localHasMore ? '0' : '1';
+  } else {
+    els.loadMoreContainer.classList.add('hidden');
+  }
 }
 
 function createCard(tx) {
-    const div = document.createElement('div');
-    div.className = 'tx-card';
-    div.dataset.id = tx.Transaction_ID;
-    
-    // Parse Trip Details
-    let detailsHtml = '';
-    try {
-        const details = JSON.parse(tx.Trip_Details);
-        if (Array.isArray(details)) {
-            detailsHtml = `<div class="card-details hidden">`;
-            details.forEach((route, idx) => {
-                const origin = route.origin || '-';
-                const dest = route.dest || '-';
-                const km = route.km || 0;
-                const routeName = route.route_name || '-';
-                const tripType = route.trip_type === 'ROUND_TRIP' ? '(ไป-กลับ)' : '(เที่ยวเดียว)';
-                
-                detailsHtml += `
-                <div class="trip-route">
-                    <div class="route-item"><span>จุดที่ ${idx+1}:</span> <strong>${origin} <i class="fa-solid fa-arrow-right" style="margin: 0 4px; font-size: 10px; opacity: 0.5;"></i> ${dest}</strong></div>
-                    <div class="route-item"><span>เส้นทาง:</span> <span style="text-align:right; font-size: 12px; color: var(--text-muted);">${routeName} ${tripType}</span></div>
-                    <div class="route-item" style="margin-top: 4px;"><span>ระยะทาง:</span> <strong>${km} กม.</strong></div>
-                </div>`;
-            });
-            detailsHtml += `</div>`;
-        }
-    } catch(e) {
-        detailsHtml = `<div class="card-details hidden"><p>ไม่สามารถแสดงรายละเอียดได้</p></div>`;
-    }
+  const div = document.createElement('div');
+  div.className = 'tx-card';
+  div.dataset.txId = String(tx.Transaction_ID);
 
-    const dateStr = new Date(tx.Req_Date).toLocaleDateString('th-TH');
-    const netTotal = Number(tx.Net_Total).toLocaleString();
+  const dateStr  = tx.Req_Date ? new Date(tx.Req_Date).toLocaleDateString('th-TH') : '-';
+  const netTotal = Number(tx.Net_Total || 0).toLocaleString();
 
-    div.innerHTML = `
-        <div class="card-checkbox">
-            <input type="checkbox" class="custom-checkbox" value="${tx.Transaction_ID}">
-        </div>
-        <div class="card-content">
-            <div class="card-header">
-                <div class="req-name">${tx.Req_Name}</div>
-                <div class="req-date">${dateStr}</div>
+  // Parse trip details
+  let detailsHtml = '';
+  try {
+    const trips = typeof tx.Trip_Details === 'string' ? JSON.parse(tx.Trip_Details) : tx.Trip_Details;
+    if (Array.isArray(trips) && trips.length > 0) {
+      detailsHtml = `<div class="trip-details">`;
+      trips.forEach((t, idx) => {
+        const km = Number(t.km || t.KM || 0).toLocaleString();
+        detailsHtml += `
+          <div class="trip-item">
+            <span class="trip-num">${idx + 1}</span>
+            <div class="trip-desc">
+              <div>${t.from || t.From || ''} → ${t.to || t.To || ''}</div>
+              <div class="trip-km">${km} กม.</div>
             </div>
-            <div class="site-name"><i class="fa-solid fa-location-dot"></i> ${tx.Site_Name}</div>
-            <div class="amount-display">
-                <div class="net-total">฿${netTotal}</div>
-                <div class="dist-total">ระยะทางรวม ${tx.Total_KM} กม.</div>
-            </div>
-            ${detailsHtml}
-        </div>
-    `;
-
-    // Event Listeners
-    const checkbox = div.querySelector('.custom-checkbox');
-    checkbox.addEventListener('change', (e) => {
-        e.stopPropagation(); // ป้องกัน click bubble ขึ้น card-content
-        const txId = String(tx.Transaction_ID); // normalize type ป้องกัน mismatch
-        if (e.target.checked) {
-            state.selectedIds.add(txId);
-            div.classList.add('selected');
-        } else {
-            state.selectedIds.delete(txId);
-            div.classList.remove('selected');
-        }
-        updateFab();
-    });
-
-    // คลิกที่ checkbox area ไม่ควร toggle details
-    const checkboxArea = div.querySelector('.card-checkbox');
-    checkboxArea.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
-
-    const contentArea = div.querySelector('.card-content');
-    contentArea.addEventListener('click', () => {
-        const detailsObj = div.querySelector('.card-details');
-        if (detailsObj) {
-            detailsObj.classList.toggle('hidden');
-        }
-    });
-
-    return div;
-}
-
-function updateFab() {
-    const count = state.selectedIds.size;
-    els.selectedCount.textContent = `(${count})`;
-    if (count > 0) {
-        els.fabArea.classList.add('active');
-    } else {
-        els.fabArea.classList.remove('active');
+          </div>`;
+      });
+      detailsHtml += `</div>`;
     }
+  } catch (e) {}
+
+  div.innerHTML = `
+    <div class="card-main">
+      <div class="card-top">
+        <div class="card-name">${tx.Req_Name || '-'}</div>
+        <div class="card-date">${dateStr}</div>
+      </div>
+      <div class="card-site"><i class="fa-solid fa-location-dot"></i> ${tx.Site_Name || '-'}</div>
+      <div class="card-amount">฿${netTotal}</div>
+      ${detailsHtml}
+    </div>
+    <div class="card-actions">
+      <button class="btn-card-reject" data-tx-id="${tx.Transaction_ID}">
+        <i class="fa-solid fa-xmark"></i><span>ไม่อนุมัติ</span>
+      </button>
+      <button class="btn-card-approve" data-tx-id="${tx.Transaction_ID}">
+        <i class="fa-solid fa-check"></i><span>อนุมัติ</span>
+      </button>
+    </div>
+  `;
+
+  // Bind per-card buttons — no FAB, no bulk, no floating element
+  div.querySelector('.btn-card-approve').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openConfirmModal(String(tx.Transaction_ID), tx.Req_Name, 'APPROVED');
+  });
+  div.querySelector('.btn-card-reject').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openConfirmModal(String(tx.Transaction_ID), tx.Req_Name, 'REJECTED');
+  });
+
+  return div;
 }
 
-/**
- * Handle API Calls with AbortController, Retry, and Anti-CORS
- */
-async function callApi(action, payload, retryCount = 0) {
-    if (CONFIG.API_URL.includes('YOUR_GAS_DEPLOYMENT_ID')) {
-        throw new Error("ยังไม่ได้ตั้งค่า API_URL ใน app.js");
-    }
+// ─── MODAL ───────────────────────────────────────────────────────────────────
+function openConfirmModal(txId, reqName, action) {
+  state.pendingAction = { txId, action };
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT_MS);
+  if (action === 'APPROVED') {
+    els.modalTitle.textContent   = 'ยืนยันการอนุมัติ';
+    els.modalTitle.style.color   = 'var(--primary-dark)';
+    els.modalMessage.textContent = `อนุมัติค่าเดินทางของ "${reqName}" ใช่หรือไม่?`;
+    els.btnModalConfirm.className = 'btn btn-success';
+    els.btnModalConfirm.textContent = '✓ อนุมัติ';
+  } else {
+    els.modalTitle.textContent   = 'ยืนยันการไม่อนุมัติ';
+    els.modalTitle.style.color   = 'var(--danger-color)';
+    els.modalMessage.textContent = `ปฏิเสธค่าเดินทางของ "${reqName}" ใช่หรือไม่?`;
+    els.btnModalConfirm.className = 'btn btn-danger';
+    els.btnModalConfirm.textContent = '✗ ไม่อนุมัติ';
+  }
 
-    try {
-        const response = await fetch(CONFIG.API_URL, {
-            method: 'POST',
-            // Send as plain text to bypass CORS preflight
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-            body: JSON.stringify({ action, payload }),
-            signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-        
-        const textResponse = await response.text();
-        
-        // Anti-429 & HTML Error Detection
-        if (textResponse.trim().startsWith('<') || response.status === 429) {
-            throw new Error("HTML_RESPONSE"); // Trigger retry
-        }
-
-        return JSON.parse(textResponse);
-
-    } catch (error) {
-        clearTimeout(timeoutId);
-        
-        if (error.name === 'AbortError') {
-            throw new Error("การเชื่อมต่อหมดเวลา (Timeout 60s) กรุณาลองใหม่");
-        }
-        
-        // Auto-Retry mechanism (Retry once after 2 seconds)
-        if (error.message === "HTML_RESPONSE" || error.name === 'SyntaxError') {
-            if (retryCount < 1) {
-                console.log("GAS Server busy (Rate Limit). Retrying in 2 seconds...");
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                return callApi(action, payload, retryCount + 1);
-            } else {
-                throw new Error("ระบบเซิร์ฟเวอร์ขัดข้อง (Google Service Error) กรุณาลองใหม่ในภายหลัง");
-            }
-        }
-        
-        throw error;
-    }
-}
-
-/**
- * UI State Managers
- */
-function showLoader(text) {
-    els.loaderText.textContent = text;
-    els.loader.classList.add('active');
-    state.isProcessing = true;
-}
-
-function hideLoader() {
-    els.loader.classList.remove('active');
-    state.isProcessing = false;
-}
-
-function showLogin(msg = "") {
-    hideLoader();
-    els.loginScreen.classList.remove('hidden');
-    els.dashboardScreen.classList.add('hidden');
-    if (msg) {
-        els.loginMessage.textContent = msg;
-        els.loginMessage.classList.remove('hidden');
-    }
-}
-
-function showDashboard() {
-    els.loginScreen.classList.add('hidden');
-    els.dashboardScreen.classList.remove('hidden');
-    els.approverNameDisplay.textContent = state.approverName;
-    fetchTransactions();
-}
-
-function openConfirmModal(action) {
-    state.currentAction = action;
-    const count = state.selectedIds.size;
-    
-    if (action === 'APPROVED') {
-        els.modalTitle.textContent = "ยืนยันการอนุมัติ";
-        els.modalTitle.style.color = "var(--primary-dark)";
-        els.modalMessage.textContent = `คุณต้องการอนุมัติรายการที่เลือกจำนวน ${count} รายการ ใช่หรือไม่?`;
-    } else {
-        els.modalTitle.textContent = "ยืนยันการไม่อนุมัติ";
-        els.modalTitle.style.color = "var(--danger-dark)";
-        els.modalMessage.textContent = `คุณต้องการ "ปฏิเสธ" รายการที่เลือกจำนวน ${count} รายการ ใช่หรือไม่?`;
-    }
-    
-    // BUG FIX: ต้อง remove 'hidden' ก่อน ไม่งั้น display:none !important จะ override .active
-    els.confirmModal.classList.remove('hidden');
-    els.confirmModal.classList.add('active');
+  // ต้อง remove hidden ก่อน แล้วค่อย add active
+  els.confirmModal.classList.remove('hidden');
+  requestAnimationFrame(() => els.confirmModal.classList.add('active'));
 }
 
 function closeConfirmModal() {
-    els.confirmModal.classList.remove('active');
-    // BUG FIX: คืน hidden กลับหลังปิด modal
-    els.confirmModal.classList.add('hidden');
-    state.currentAction = null;
+  els.confirmModal.classList.remove('active');
+  setTimeout(() => els.confirmModal.classList.add('hidden'), 200); // รอ animation
+  state.pendingAction = null;
 }
 
 async function executeAction() {
-    if (state.selectedIds.size === 0 || !state.currentAction) return;
-    
-    const idsToProcess = Array.from(state.selectedIds);
-    // BUG FIX #3: บันทึก action ไว้ก่อน เพราะ closeConfirmModal() จะ set state.currentAction = null
-    // ถ้าไม่บันทึกไว้ callApi() จะได้รับ status = null และ backend จะโยน "Invalid status" error
-    const actionToExecute = state.currentAction;
-    closeConfirmModal();
-    showLoader('กำลังดำเนินการ...');
+  const pending = state.pendingAction; // cache ก่อน close modal
+  if (!pending) return;
+  closeConfirmModal();
 
-    try {
-        const res = await callApi('approveTransactions', {
-            transactionIds: idsToProcess,
-            approverName: state.approverName,
-            status: actionToExecute
-        });
-
-        if (res.status === 'success') {
-            const data = res.data;
-            let alertMsg = `✅ อัปเดตสำเร็จ ${data.processedCount} รายการ`;
-            if (data.failedTransactions && data.failedTransactions.length > 0) {
-                alertMsg += `\n❌ ไม่สำเร็จ ${data.failedTransactions.length} รายการ (สถานะอาจมีการเปลี่ยนแปลงไปแล้ว)`;
-            }
-            alert(alertMsg);
-            // Refresh list
-            fetchTransactions();
-        } else {
-            alert("Error: " + res.message);
-            hideLoader();
-        }
-    } catch (error) {
-        alert("ข้อผิดพลาด: " + error.message);
-        hideLoader();
+  showLoader(pending.action === 'APPROVED' ? 'กำลังอนุมัติ...' : 'กำลังปฏิเสธ...');
+  try {
+    const res = await callApi('approveTransactions', {
+      transactionIds: [pending.txId],
+      approverName:   state.approverName,
+      status:         pending.action
+    });
+    if (res.status === 'success') {
+      // ลบ card ออกจาก DOM และ state
+      removeCardFromUI(pending.txId);
+    } else {
+      alert('เกิดข้อผิดพลาด: ' + res.message);
     }
+  } catch (err) {
+    alert('เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่');
+  } finally {
+    hideLoader();
+  }
 }
 
-/**
- * Event Listeners
- */
-els.btnSetup.addEventListener('click', () => {
-    const code = els.setupCodeInput.value.trim();
-    if (!code) {
-        els.loginMessage.textContent = "กรุณากรอกรหัสผ่าน";
-        els.loginMessage.classList.remove('hidden');
-        return;
+function removeCardFromUI(txId) {
+  const card = els.transactionList.querySelector(`[data-tx-id="${txId}"]`);
+  if (card) {
+    card.classList.add('card-removing');
+    setTimeout(() => {
+      card.remove();
+      state.transactions = state.transactions.filter(t => String(t.Transaction_ID) !== txId);
+      state.displayedCount = Math.max(0, state.displayedCount - 1);
+      state.totalCount = Math.max(0, state.totalCount - 1);
+
+      if (els.transactionList.children.length === 0) {
+        els.emptyState.classList.remove('hidden');
+      }
+    }, 300);
+  }
+}
+
+// ─── LOAD MORE ───────────────────────────────────────────────────────────────
+els.btnLoadMore.addEventListener('click', async () => {
+  if (els.btnLoadMore.dataset.fetchServer === '1') {
+    // ดึงจาก server
+    try {
+      showLoader('กำลังโหลดเพิ่มเติม...');
+      const res = await callApi('getPendingApprovals', {
+        approverName: state.approverName,
+        offset: state.serverOffset,
+        limit: CONFIG.PAGE_SIZE
+      });
+      if (res.status === 'success') {
+        const pageData = res.data;
+        state.transactions = state.transactions.concat(pageData.items);
+        state.serverOffset += pageData.items.length;
+        renderNextBatch(pageData.hasMore);
+      }
+    } catch (err) {
+      alert('โหลดข้อมูลไม่ได้');
+    } finally {
+      hideLoader();
     }
-    checkLogin(code);
+  } else {
+    renderNextBatch(false);
+  }
 });
 
-els.btnLoadMore.addEventListener('click', () => {
-    // If local buffer still has more items to show, render them; otherwise fetch next page from server
-    if (els.btnLoadMore.dataset.fetchServer === '1') {
-        fetchMoreTransactions();
-    } else {
-        renderNextBatch(els.btnLoadMore.dataset.fetchServer === '1');
-    }
-});
-
-els.btnRefreshEmpty.addEventListener('click', () => {
-    fetchTransactions();
-});
-
-els.btnBulkApprove.addEventListener('click', () => openConfirmModal('APPROVED'));
-els.btnBulkReject.addEventListener('click', () => openConfirmModal('REJECTED'));
-
-els.btnModalCancel.addEventListener('click', closeConfirmModal);
+// ─── EVENT BINDINGS ──────────────────────────────────────────────────────────
 els.btnModalConfirm.addEventListener('click', executeAction);
+els.btnModalCancel.addEventListener('click',  closeConfirmModal);
 
-// Start App
-window.addEventListener('DOMContentLoaded', init);
+// ปิด modal เมื่อกด backdrop
+els.confirmModal.addEventListener('click', (e) => {
+  if (e.target === els.confirmModal) closeConfirmModal();
+});
+
+els.btnRefreshEmpty.addEventListener('click', fetchTransactions);
+
+// ─── START ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', init);
