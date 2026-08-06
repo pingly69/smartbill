@@ -21,14 +21,21 @@ const AdminRepository = {
     }
 
     const sheet = this._getSpreadsheet().getSheetByName(CONFIG.SHEETS.APPROVE_USERS);
-    const data = sheet.getDataRange().getValues();
+    // BUG FIX #1b: ใช้ getLastRow() แทน getDataRange() เพื่อหลีกเลี่ยงการดึงข้อมูลบรรทัดว่างนับพัน
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null; // มีแค่ header หรือว่างเปล่า
+    const data = sheet.getRange(1, 1, lastRow, sheet.getLastColumn()).getValues();
     const headers = data[0];
     const colName = headers.indexOf('approve_request');
     const colUid = headers.indexOf('line_uid');
     const colActive = headers.indexOf('Active');
 
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][colUid]) === String(uidOrCode) && data[i][colActive] === true) {
+      if (!data[i][0]) continue; // ข้ามแถวว่าง
+      // BUG FIX #1a: Google Sheets อาจ return Active เป็น Boolean true หรือ String "TRUE"/"true"
+      // ใช้ String() เพื่อ normalize ให้ match ได้ทุกกรณี
+      const isActive = String(data[i][colActive]).toUpperCase() === 'TRUE';
+      if (String(data[i][colUid]) === String(uidOrCode) && isActive) {
         const approverData = {
           name: data[i][colName],
           rowIndex: i + 1 // 1-based index

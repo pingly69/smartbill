@@ -15,7 +15,9 @@ const CONFIG = {
 const state = {
     lineUid: null,
     approverName: null,
-    transactions: [],
+    transactions: [],   // items in current page buffer
+    totalCount: 0,      // total pending count from server
+    serverOffset: 0,    // how many items we've already loaded from server
     displayedCount: 0,
     selectedIds: new Set(),
     isProcessing: false,
@@ -118,19 +120,27 @@ async function checkLogin(setupCode = null) {
 }
 
 /**
- * Fetch Pending Transactions
+ * Fetch Pending Transactions (first page)
  */
 async function fetchTransactions() {
     showLoader('กำลังดึงข้อมูล...');
     try {
-        const res = await callApi('getPendingApprovals', { approverName: state.approverName });
+        const res = await callApi('getPendingApprovals', {
+            approverName: state.approverName,
+            offset: 0,
+            limit: CONFIG.PAGE_SIZE
+        });
         if (res.status === 'success') {
-            state.transactions = res.data;
+            // response ใหม่มี { total, offset, limit, hasMore, items }
+            const pageData = res.data;
+            state.transactions = pageData.items;
+            state.totalCount   = pageData.total;
+            state.serverOffset = pageData.items.length;
             state.displayedCount = 0;
             state.selectedIds.clear();
             els.transactionList.innerHTML = '';
             updateFab();
-            renderNextBatch();
+            renderNextBatch(pageData.hasMore);
         } else {
             alert("Error: " + res.message);
         }
@@ -142,13 +152,41 @@ async function fetchTransactions() {
 }
 
 /**
- * Render Cards (Pagination / Lazy Load)
+ * Load more transactions from server (next page)
  */
-function renderNextBatch() {
+async function fetchMoreTransactions() {
+    showLoader('โหลดเพิ่มเติม...');
+    try {
+        const res = await callApi('getPendingApprovals', {
+            approverName: state.approverName,
+            offset: state.serverOffset,
+            limit: CONFIG.PAGE_SIZE
+        });
+        if (res.status === 'success') {
+            const pageData = res.data;
+            // Append new items to the buffer
+            state.transactions = state.transactions.concat(pageData.items);
+            state.serverOffset += pageData.items.length;
+            renderNextBatch(pageData.hasMore);
+        } else {
+            alert("Error: " + res.message);
+        }
+    } catch (error) {
+        alert("ข้อผิดพลาด: " + error.message);
+    } finally {
+        hideLoader();
+    }
+}
+
+/**
+ * Render Cards from current local buffer
+ * @param {boolean} serverHasMore - whether server still has more items beyond current buffer
+ */
+function renderNextBatch(serverHasMore) {
     const start = state.displayedCount;
     const end = Math.min(start + CONFIG.PAGE_SIZE, state.transactions.length);
     
-    if (state.transactions.length === 0) {
+    if (state.transactions.length === 0 && !serverHasMore) {
         els.emptyState.classList.remove('hidden');
         els.loadMoreContainer.classList.add('hidden');
         return;
@@ -164,8 +202,12 @@ function renderNextBatch() {
     
     state.displayedCount = end;
     
-    if (state.displayedCount < state.transactions.length) {
+    // Show "load more" if there are more items in local buffer OR more on server
+    const localHasMore = state.displayedCount < state.transactions.length;
+    if (localHasMore || serverHasMore) {
         els.loadMoreContainer.classList.remove('hidden');
+        // Store whether next click should fetch from server
+        els.btnLoadMore.dataset.fetchServer = (!localHasMore && serverHasMore) ? '1' : '0';
     } else {
         els.loadMoreContainer.classList.add('hidden');
     }
@@ -367,6 +409,9 @@ async function executeAction() {
     if (state.selectedIds.size === 0 || !state.currentAction) return;
     
     const idsToProcess = Array.from(state.selectedIds);
+    // BUG FIX #3: บันทึก action ไว้ก่อน เพราะ closeConfirmModal() จะ set state.currentAction = null
+    // ถ้าไม่บันทึกไว้ callApi() จะได้รับ status = null และ backend จะโยน "Invalid status" error
+    const actionToExecute = state.currentAction;
     closeConfirmModal();
     showLoader('กำลังดำเนินการ...');
 
@@ -374,7 +419,7 @@ async function executeAction() {
         const res = await callApi('approveTransactions', {
             transactionIds: idsToProcess,
             approverName: state.approverName,
-            status: state.currentAction
+            status: actionToExecute
         });
 
         if (res.status === 'success') {
@@ -410,7 +455,12 @@ els.btnSetup.addEventListener('click', () => {
 });
 
 els.btnLoadMore.addEventListener('click', () => {
-    renderNextBatch();
+    // If local buffer still has more items to show, render them; otherwise fetch next page from server
+    if (els.btnLoadMore.dataset.fetchServer === '1') {
+        fetchMoreTransactions();
+    } else {
+        renderNextBatch(els.btnLoadMore.dataset.fetchServer === '1');
+    }
 });
 
 els.btnRefreshEmpty.addEventListener('click', () => {
