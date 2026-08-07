@@ -68,13 +68,17 @@ async function initLiff() {
       if (liff.isLoggedIn()) {
         const profile = await liff.getProfile();
         state.lineUid = profile.userId;
+      } else {
+        // Redirect to standard LINE Login on external browsers (Desktop/Notebook)
+        liff.login({ redirectUri: window.location.href });
+        return;
       }
     }
   } catch (err) {
     console.warn('LIFF init warning:', err);
   }
 
-  // Fallback for development / testing without LIFF
+  // Fallback if LIFF SDK fails to load completely
   if (!state.lineUid) {
     state.lineUid = localStorage.getItem('TRIP1DAY_APPROVER_UID') || ('MOCK_UID_' + Math.floor(Math.random() * 1000));
     localStorage.setItem('TRIP1DAY_APPROVER_UID', state.lineUid);
