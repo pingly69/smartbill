@@ -1,6 +1,6 @@
 /**
  * app.js - Frontend Application Logic
- * Trip1Day Approver Mobile Web App
+ * Trip1Day Approver Mobile Web App (v20260807)
  */
 
 // Configuration & Constants
