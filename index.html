@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SmartBill</title>
+  <title>SmartBill v2.5</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
@@ -278,7 +278,7 @@
   </div>
 
   <div class="container">
-    <h1>SmartBill</h1>
+    <h1>SmartBill v2.5</h1>
 
     <form id="billForm">
 
@@ -375,8 +375,8 @@
       </div>
 
       <div class="form-group">
-        <label>รหัสโครงการ (ถ้ามี)</label>
-        <input type="text" id="projectCode">
+        <label>โครงการ</label>
+        <input type="text" id="projectCode" required>
       </div>
 
       <div class="form-group">
@@ -405,6 +405,11 @@
     let imageMimeType = "";
 
     window.onload = function () {
+      // ป้องกันไม่ให้เลือกวันที่เกินปัจจุบัน
+      const today = new Date();
+      today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+      document.getElementById('billDate').max = today.toISOString().split("T")[0];
+
       // Since it might run within GAS, let's try to init LIFF
       initializeLiff();
     };
@@ -640,6 +645,17 @@
       const form = document.getElementById('billForm');
       if (!form.checkValidity()) {
         form.reportValidity();
+        return;
+      }
+
+      const billDateStr = document.getElementById('billDate').value;
+      const selectedDate = new Date(billDateStr);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999); // Allow any time today
+      
+      if (selectedDate > today) {
+        alert("วันที่บนบิลต้องไม่เกินวันที่ปัจจุบันครับ");
+        document.getElementById('billDate').focus();
         return;
       }
 
