@@ -515,9 +515,19 @@
 
     function handleProfileResponse(data) {
       const typeSelect = document.getElementById('reqType');
-      if (data && data.found && data.pettycash_control === "YES") {
-        // Show both options, default to Type 2
-        typeSelect.value = "2";
+      if (data && data.found) {
+        if (data.request_name) {
+          document.getElementById('requesterName').value = data.request_name;
+        }
+        
+        if (data.pettycash_control === "YES") {
+          // Show both options, default to Type 2
+          typeSelect.value = "2";
+        } else {
+          // Lock to Type 1
+          typeSelect.innerHTML = '<option value="1">ประเภท 1 - ขอเบิกเงินคืน</option>';
+          typeSelect.value = "1";
+        }
       } else {
         // Lock to Type 1
         typeSelect.innerHTML = '<option value="1">ประเภท 1 - ขอเบิกเงินคืน</option>';
