@@ -591,19 +591,48 @@
       if (file) {
         nameDisplay.innerText = file.name;
         const reader = new FileReader();
-        reader.onloadend = function () {
-          preview.src = reader.result;
-          preview.style.display = 'block';
+        reader.onload = function(event) {
+          const img = new Image();
+          img.onload = function() {
+            // กำหนดขนาดสูงสุดที่ 1200px (เพียงพอที่ AI จะอ่านตัวหนังสือได้ชัดเจน)
+            const MAX_WIDTH = 1200;
+            const MAX_HEIGHT = 1200;
+            let width = img.width;
+            let height = img.height;
 
-          // Store Base64 without data URI prefix
-          const base64Data = reader.result.split(',')[1];
-          base64ImageString = base64Data;
-          imageMimeType = file.type;
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height = Math.round(height *= MAX_WIDTH / width);
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width = Math.round(width *= MAX_HEIGHT / height);
+                height = MAX_HEIGHT;
+              }
+            }
 
-          if (document.getElementById('aiToggle').checked) {
-            triggerAI(base64Data, file.type);
-          }
-        }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // บีบอัดเป็น JPEG ที่คุณภาพ 80% (0.8)
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            preview.src = dataUrl;
+            preview.style.display = 'block';
+
+            const base64Data = dataUrl.split(',')[1];
+            base64ImageString = base64Data;
+            imageMimeType = 'image/jpeg';
+
+            if (document.getElementById('aiToggle').checked) {
+              triggerAI(base64Data, 'image/jpeg');
+            }
+          };
+          img.src = event.target.result;
+        };
         reader.readAsDataURL(file);
       } else {
         preview.src = "";
