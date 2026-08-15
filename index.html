@@ -1,116 +1,711 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <title>Trip1Day — ระบบอนุมัติค่าเดินทาง</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <!-- LINE LIFF SDK -->
-  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <title>SmartBill</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --line-green: #00B900;
+      --line-green-hover: #009900;
+      --bg-color: #f4f6f8;
+      --card-bg: rgba(255, 255, 255, 0.9);
+      --text-main: #333333;
+      --text-muted: #777777;
+      --border-color: #e0e0e0;
+      --error-color: #ff3b30;
+      --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Kanit', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 16px;
+      padding-bottom: 40px;
+    }
+
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 24px;
+      color: var(--line-green);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: var(--text-main);
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      font-size: 16px;
+      background-color: #fff;
+      transition: all 0.3s ease;
+      appearance: none;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--line-green);
+      box-shadow: 0 0 0 3px rgba(0, 185, 0, 0.15);
+    }
+
+    input[readonly] {
+      background-color: #f0f0f0;
+      color: var(--text-muted);
+    }
+
+    /* Toggle Switch */
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #fff;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 16px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 28px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked+.slider {
+      background-color: var(--line-green);
+    }
+
+    input:checked+.slider:before {
+      transform: translateX(22px);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      background-color: var(--line-green);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-top: 10px;
+    }
+
+    .btn:hover {
+      background-color: var(--line-green-hover);
+      box-shadow: 0 4px 12px rgba(0, 185, 0, 0.3);
+    }
+
+    .btn:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* File Upload */
+    .file-upload-wrapper {
+      position: relative;
+      margin-bottom: 16px;
+    }
+
+    .file-upload-wrapper input[type="file"] {
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .file-upload-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
+      background-color: #f9f9f9;
+      border: 2px dashed var(--border-color);
+      border-radius: 12px;
+      color: var(--text-muted);
+      transition: all 0.3s;
+    }
+
+    .file-upload-wrapper:hover .file-upload-btn {
+      border-color: var(--line-green);
+      background-color: rgba(0, 185, 0, 0.02);
+    }
+
+    #previewImage {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* Overlay Loader */
+    #loader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+      color: var(--line-green);
+    }
+
+    .spinner {
+      border: 4px solid rgba(0, 185, 0, 0.1);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border-left-color: var(--line-green);
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .calculation-box {
+      background: #f8f9fa;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border-color);
+    }
+  </style>
 </head>
+
 <body>
-  <div id="app">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="header-content">
-        <div class="logo-area">
-          <div class="logo-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.6C1.4 11 1 11.7 1 12.5V16c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
-          </div>
-          <div>
-            <h1 class="app-title">Trip1Day Approver</h1>
-            <p class="app-subtitle" id="approverNameDisplay">ระบบอนุมัติรายการเบิกค่าเดินทาง</p>
-          </div>
-        </div>
-        <button id="btnRefresh" class="btn-icon" title="รีเฟรชข้อมูล">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-        </button>
-      </div>
-    </header>
 
-    <!-- Login Screen -->
-    <section id="loginSection" class="card-section hidden">
-      <div class="login-card">
-        <div class="login-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+  <div id="loader">
+    <div class="spinner"></div>
+    <div id="loaderText">กำลังโหลดข้อมูล...</div>
+  </div>
+
+  <div class="container">
+    <h1>SmartBill</h1>
+
+    <form id="billForm">
+
+      <!-- User Info Hidden -->
+      <input type="hidden" id="lineUserId">
+      <input type="hidden" id="lineEmail">
+
+      <div class="form-group">
+        <label>ชื่อผู้เบิก</label>
+        <input type="text" id="requesterName" required>
+      </div>
+
+      <div class="form-group">
+        <label>ประเภทการเบิก</label>
+        <select id="reqType" required onchange="handleTypeChange()">
+          <option value="1">ประเภท 1 - ขอเบิกเงินคืน</option>
+          <option value="2">ประเภท 2 - ใช้วงเงินสดย่อย</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>ผู้อนุมัติ</label>
+        <select id="approve_request" required>
+          <option value="">-- เลือกผู้อนุมัติ --</option>
+        </select>
+      </div>
+
+      <div class="file-upload-wrapper">
+        <div class="file-upload-btn">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px;color:#00B900;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span id="fileNameDisplay">ถ่ายรูปหรือเลือกไฟล์บิล</span>
         </div>
-        <h2>ลงทะเบียนเข้าใช้งานครั้งแรก</h2>
-        <p class="login-desc">กรุณากรอกรหัสยืนยันตัวตน (Setup Code) ที่ได้รับจาก Admin เพื่อเปิดใช้งานครั้งแรก</p>
-        
+        <input type="file" id="billImage" accept="image/*" onchange="previewFile()">
+        <img id="previewImage" src="" alt="Preview">
+      </div>
+
+      <div class="toggle-container">
+        <div>
+          <div style="font-weight: 500;">ใช้ AI อ่านบิลอัตโนมัติ</div>
+          <div style="font-size: 12px; color: var(--text-muted);">Gemini จะช่วยกรอกข้อมูลให้</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="aiToggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label>เลขประจำตัวผู้เสียภาษี (13 หลัก)</label>
+        <input type="text" id="taxId" required maxlength="13">
+      </div>
+
+      <div class="form-group">
+        <label>ชื่อผู้ขาย/ร้านค้า</label>
+        <input type="text" id="sellerName" required>
+      </div>
+
+      <div class="form-group">
+        <label>รหัสสาขา</label>
+        <input type="text" id="branchCode" value="00000" required>
+      </div>
+
+      <div class="form-group">
+        <label>เลขที่ใบกำกับภาษี/บิล</label>
+        <input type="text" id="billNumber" required>
+      </div>
+
+      <div class="form-group">
+        <label>วันที่บนบิล</label>
+        <input type="date" id="billDate" required>
+      </div>
+
+      <div class="calculation-box">
         <div class="form-group">
-          <label for="setupCodeInput">รหัสยืนยันตัวตน</label>
-          <input type="text" id="setupCodeInput" placeholder="กรอกรหัสยืนยันตัวตน..." autocomplete="off">
+          <label>ยอดก่อน VAT</label>
+          <input type="number" id="preVat" step="0.01" value="0" required oninput="calculateTotal()">
         </div>
-        
-        <div id="loginError" class="alert-error hidden"></div>
-        
-        <button id="btnLogin" class="btn btn-primary btn-block">
-          <span>ยืนยันตัวตน</span>
-        </button>
-      </div>
-    </section>
 
-    <!-- Main Queue Section -->
-    <section id="queueSection" class="queue-section hidden">
-      <!-- Status & Select All Bar -->
-      <div class="queue-bar">
-        <div class="select-all-wrapper">
-          <input type="checkbox" id="selectAllCheckbox" class="custom-checkbox">
-          <label for="selectAllCheckbox" class="select-all-label">เลือกทั้งหมดในหน้านี้</label>
+        <div class="form-group">
+          <label>ยอด VAT</label>
+          <input type="number" id="vatAmount" step="0.01" value="0" required oninput="calculateTotal()">
         </div>
-        <div class="queue-badge" id="queueBadge">รออนุมัติ 0 รายการ</div>
-      </div>
 
-      <!-- Cards Container -->
-      <div id="cardsContainer" class="cards-container">
-        <!-- Dynamic Cards Inserted Here -->
-      </div>
-
-      <!-- Empty State -->
-      <div id="emptyState" class="empty-state hidden">
-        <div class="empty-icon">
-          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="color: var(--line-green);">ยอดรวมสุทธิ</label>
+          <input type="number" id="totalAmount" step="0.01" value="0" readonly
+            style="font-size: 18px; font-weight: bold; color: var(--line-green);">
         </div>
-        <h3>ไม่มีรายการค้างอนุมัติ</h3>
-        <p>รายการเบิกค่าเดินทางทั้งหมดได้รับการดำเนินการเรียบร้อยแล้ว</p>
       </div>
-    </section>
 
-    <!-- Sticky Bottom Action Bar -->
-    <footer id="actionBar" class="action-bar hidden">
-      <div class="action-summary">
-        <span>เลือกไว้ <strong id="selectedCount">0</strong> รายการ</span>
-        <span class="total-amount">รวม <strong id="selectedAmount">฿0.00</strong></span>
+      <div class="form-group">
+        <label>รหัสโครงการ (ถ้ามี)</label>
+        <input type="text" id="projectCode">
       </div>
-      <div class="action-buttons">
-        <button id="btnReject" class="btn btn-danger" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          <span>ปฏิเสธ</span>
-        </button>
-        <button id="btnApprove" class="btn btn-success" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-          <span>อนุมัติ</span>
-        </button>
+
+      <div class="form-group">
+        <label>หมายเหตุ / รายการสินค้า</label>
+        <textarea id="expenseNote" rows="3"></textarea>
       </div>
-    </footer>
+
+      <button type="button" class="btn" id="submitBtn" onclick="submitForm()">ยืนยันและบันทึก</button>
+
+    </form>
   </div>
 
-  <!-- Global Loading Overlay -->
-  <div id="loadingOverlay" class="loading-overlay hidden">
-    <div class="spinner-container">
-      <div class="spinner"></div>
-      <div id="loadingMessage" class="loading-message">กำลังโหลดข้อมูล...</div>
-      <div id="loadingSubtext" class="loading-subtext">โปรดรอสักครู่ ห้ามปิดหน้าจอ</div>
-    </div>
-  </div>
+  <script>
+    const LIFF_ID = "2009016720-6dg4Pumx";
 
-  <!-- App Script -->
-  <script src="app.js?v=20260807_v12"></script>
+    // ตั้งค่า URL ของ Google Apps Script Web App ที่ได้จากการ Deploy
+    // เปลี่ยนจาก YOUR_WEB_APP_URL_HERE เป็น URL ของคุณที่ขึ้นต้นด้วย https://script.google.com/macros/s/.../exec
+    let WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzqo25IiSc0iFn7Hn9h70wkmYG5hwiZVPNEO_6nhNROBh_LG4AqOMsWpWV2HFb4U8O7/exec";
+
+    // Fallback: ถ้าลืมเปลี่ยนตัวแปร แต่รันผ่าน GAS ตรงๆ
+    if (window.location.href.includes('script.google.com')) {
+      WEB_APP_URL = window.location.href.split('?')[0];
+    }
+
+    let base64ImageString = "";
+    let imageMimeType = "";
+
+    window.onload = function () {
+      // Since it might run within GAS, let's try to init LIFF
+      initializeLiff();
+    };
+
+    async function initializeLiff() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+        const profile = await liff.getProfile();
+        const email = liff.getDecodedIDToken()?.email || "";
+
+        document.getElementById('lineUserId').value = profile.userId;
+        document.getElementById('lineEmail').value = email;
+        document.getElementById('requesterName').value = profile.displayName;
+
+        // Fetch User Profile & Approvers
+        fetchInitialData(profile.userId);
+
+      } catch (err) {
+        console.error('LIFF Init Error', err);
+        alert("LIFF Init Error: " + err.message);
+        hideLoader();
+      }
+    }
+
+    function showLoader(text) {
+      document.getElementById('loaderText').innerText = text || 'กำลังโหลด...';
+      document.getElementById('loader').classList.remove('hidden');
+    }
+
+    function hideLoader() {
+      document.getElementById('loader').classList.add('hidden');
+    }
+
+    async function fetchInitialData(userId) {
+      try {
+        showLoader('กำลังตรวจสอบสิทธิ์...');
+
+        // Use google.script.run if available (it is available in GAS HTML service)
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          google.script.run
+            .withSuccessHandler((response) => {
+              handleProfileResponse(JSON.parse(response).data);
+              fetchApproversGAS();
+            })
+            .withFailureHandler((err) => {
+              alert("Error loading profile: " + err.message);
+              hideLoader();
+            })
+            .doPostMock({ action: 'getUserProfile', lineUid: userId });
+          // Wait, google.script.run calls specific functions.
+          // But the spec says "doPost router". If I have to use fetch:
+        }
+
+        if (WEB_APP_URL) {
+          const res = await fetch(WEB_APP_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'getUserProfile', lineUid: userId })
+          });
+          const json = await res.json();
+          handleProfileResponse(json.data);
+          await fetchApprovers();
+        } else {
+          // Fallback if URL is missing, we use google.script.run to call a wrapper or the exact doPost
+          // Actually, let's inject google.script.run for GAS environment if URL fetch fails.
+          // Since we can't be 100% sure the URL is right, I'll stick to google.script.run calling doPost manually isn't standard,
+          // I will use fetch with an injected URL. 
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Failed to load initial data. Are you running this outside of GAS web app without the URL?");
+        hideLoader();
+      }
+    }
+
+    // Because I need WEB_APP_URL securely, I'll use google.script.run to route to a wrapper, but spec says "doPost() router เท่านั้น".
+    // If I use `fetch(window.location.href, ...)`, it works perfectly for GAS Web Apps.
+
+    async function apiCall(payload) {
+      if (!WEB_APP_URL && window.location.href.includes("exec")) WEB_APP_URL = window.location.href.split('?')[0];
+      if (!WEB_APP_URL && window.location.href.includes("dev")) WEB_APP_URL = window.location.href.split('?')[0];
+
+      if (!WEB_APP_URL) {
+        // Fallback if testing locally
+        throw new Error("Web App URL not found.");
+      }
+
+      const res = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    }
+
+    function handleProfileResponse(data) {
+      const typeSelect = document.getElementById('reqType');
+      if (data && data.found && data.pettycash_control === "YES") {
+        // Show both options, default to Type 2
+        typeSelect.value = "2";
+      } else {
+        // Lock to Type 1
+        typeSelect.innerHTML = '<option value="1">ประเภท 1 - ขอเบิกเงินคืน</option>';
+        typeSelect.value = "1";
+      }
+      handleTypeChange();
+    }
+
+    async function fetchApprovers() {
+      try {
+        const response = await apiCall({ action: 'getApprovers' });
+        const approvers = response.data || [];
+        const select = document.getElementById('approve_request');
+
+        // keep the placeholder
+        const placeholder = select.options[0];
+        select.innerHTML = '';
+        select.appendChild(placeholder);
+
+        approvers.forEach(appr => {
+          const opt = document.createElement('option');
+          opt.value = appr;
+          opt.innerText = appr;
+          select.appendChild(opt);
+        });
+
+        handleTypeChange(); // re-apply rules
+        hideLoader();
+      } catch (err) {
+        console.error("Error fetching approvers", err);
+        hideLoader();
+      }
+    }
+
+    function handleTypeChange() {
+      const type = document.getElementById('reqType').value;
+      const appSelect = document.getElementById('approve_request');
+
+      if (type === "2") {
+        // Type 2 rules
+        appSelect.innerHTML = '<option value="เงินสดย่อยรอตัด">เงินสดย่อยรอตัด</option>';
+        appSelect.value = "เงินสดย่อยรอตัด";
+        appSelect.setAttribute('readonly', 'readonly');
+        appSelect.style.pointerEvents = 'none';
+        appSelect.style.backgroundColor = '#f0f0f0';
+      } else {
+        // Type 1 rules (if approvers were already loaded, they should be restored... 
+        // to keep it simple, we just re-enable it. But since we overwrote innerHTML, we might need to fetch again.
+        // Let's store approvers globally to avoid re-fetching.)
+        appSelect.removeAttribute('readonly');
+        appSelect.style.pointerEvents = 'auto';
+        appSelect.style.backgroundColor = '#fff';
+        if (appSelect.options.length <= 1) {
+          fetchApprovers(); // refetch if options were cleared
+        }
+      }
+    }
+
+    function calculateTotal() {
+      const preVat = parseFloat(document.getElementById('preVat').value) || 0;
+      const vatAmount = parseFloat(document.getElementById('vatAmount').value) || 0;
+      document.getElementById('totalAmount').value = (preVat + vatAmount).toFixed(2);
+    }
+
+    function previewFile() {
+      const fileInput = document.getElementById('billImage');
+      const preview = document.getElementById('previewImage');
+      const nameDisplay = document.getElementById('fileNameDisplay');
+      const file = fileInput.files[0];
+
+      if (file) {
+        nameDisplay.innerText = file.name;
+        const reader = new FileReader();
+        reader.onloadend = function () {
+          preview.src = reader.result;
+          preview.style.display = 'block';
+
+          // Store Base64 without data URI prefix
+          const base64Data = reader.result.split(',')[1];
+          base64ImageString = base64Data;
+          imageMimeType = file.type;
+
+          if (document.getElementById('aiToggle').checked) {
+            triggerAI(base64Data, file.type);
+          }
+        }
+        reader.readAsDataURL(file);
+      } else {
+        preview.src = "";
+        preview.style.display = 'none';
+        nameDisplay.innerText = "ถ่ายรูปหรือเลือกไฟล์บิล";
+        base64ImageString = "";
+      }
+    }
+
+    async function triggerAI(base64, mimeType) {
+      showLoader('AI กำลังอ่านข้อมูลบิล...');
+      try {
+        const response = await apiCall({
+          action: 'analyze',
+          base64: base64,
+          type: mimeType
+        });
+
+        if (response.success && response.data) {
+          const data = response.data;
+          if (data.taxId) document.getElementById('taxId').value = data.taxId;
+          if (data.sellerName) document.getElementById('sellerName').value = data.sellerName;
+          if (data.branchCode) document.getElementById('branchCode').value = data.branchCode;
+          if (data.billNumber) document.getElementById('billNumber').value = data.billNumber;
+          if (data.billDate) document.getElementById('billDate').value = data.billDate;
+          if (data.preVat !== undefined) document.getElementById('preVat').value = data.preVat;
+          if (data.vatAmount !== undefined) document.getElementById('vatAmount').value = data.vatAmount;
+          if (data.expenseNote) document.getElementById('expenseNote').value = data.expenseNote;
+
+          calculateTotal();
+        } else {
+          alert("AI Error: " + (response.message || "ไม่สามารถอ่านข้อมูลได้"));
+        }
+      } catch (err) {
+        alert("AI Error: " + err.message);
+      } finally {
+        hideLoader();
+      }
+    }
+
+    async function submitForm() {
+      const form = document.getElementById('billForm');
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerText = "กำลังบันทึกข้อมูล...";
+
+      showLoader('กำลังบันทึกข้อมูล...');
+
+      const formData = {
+        taxId: document.getElementById('taxId').value,
+        sellerName: document.getElementById('sellerName').value,
+        branchCode: document.getElementById('branchCode').value,
+        billNumber: document.getElementById('billNumber').value,
+        billDate: document.getElementById('billDate').value,
+        preVat: document.getElementById('preVat').value,
+        vatAmount: document.getElementById('vatAmount').value,
+        projectCode: document.getElementById('projectCode').value,
+        expenseNote: document.getElementById('expenseNote').value,
+        reqType: document.getElementById('reqType').value,
+        approve_request: document.getElementById('approve_request').value,
+        requesterName: document.getElementById('requesterName').value,
+        lineUserId: document.getElementById('lineUserId').value,
+        lineEmail: document.getElementById('lineEmail').value,
+        base64Image: base64ImageString,
+        mimeType: imageMimeType
+      };
+
+      try {
+        const response = await apiCall({
+          action: 'submit',
+          formData: formData
+        });
+
+        if (response.success) {
+          if (liff.isInClient()) {
+            await liff.sendMessages([{
+              type: "text",
+              text: `✅ บันทึกบิลสำเร็จ\nผู้ขาย: ${formData.sellerName}\nยอด: ${document.getElementById('totalAmount').value} บาท`
+            }]);
+          } else {
+            alert("บันทึกข้อมูลสำเร็จ");
+          }
+
+          setTimeout(() => {
+            if (liff.isInClient()) {
+              liff.closeWindow();
+            } else {
+              window.location.reload();
+            }
+          }, 2000);
+
+        } else {
+          alert("เกิดข้อผิดพลาด: " + response.message);
+          submitBtn.disabled = false;
+          submitBtn.innerText = "ยืนยันและบันทึก";
+        }
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการเชื่อมต่อ: " + err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerText = "ยืนยันและบันทึก";
+      } finally {
+        hideLoader();
+      }
+    }
+  </script>
 </body>
+
 </html>

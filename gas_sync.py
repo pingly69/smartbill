@@ -99,9 +99,8 @@ def push():
         })
         
     for fname in os.listdir('.'):
-        if fname in ('appsscript.json', 'gas_sync.py', 'app.js', 'index.html', 'styles.css') or fname.startswith('.'):
+        if fname in ('appsscript.json', 'gas_sync.py', 'app.js', 'styles.css') or fname.startswith('.'):
             continue
-        
         full_path = os.path.join('.', fname)
         if not os.path.isfile(full_path):
             continue
