@@ -1,5 +1,6 @@
 const Config = {
   SPREADSHEET_ID: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID'),
+  SPREADSHEET_ID_BACKUP: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID_BACKUP'),
   SHEET_TAXDATA: PropertiesService.getScriptProperties().getProperty('SHEET_TAXDATA') || 'TaxData',
   SHEET_APPROVE_USERS: PropertiesService.getScriptProperties().getProperty('SHEET_APPROVE_USERS') || 'Approve_users',
   SHEET_USERS_PROFILE: PropertiesService.getScriptProperties().getProperty('SHEET_USERS_PROFILE') || 'users_profile',
