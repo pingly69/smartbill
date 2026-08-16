@@ -15,7 +15,7 @@ function setupProperties() {
     'DRIVE_FOLDER_ID_BILLS': '1g6IiM2GUtwsI6vNJ2l0IMfgAjePGPGbs',
     
     // ⚠️ ใส่ API Key ของคุณตรงนี้ (เอาเครื่องหมาย ... ออกแล้ววางคีย์)
-    'GEMINI_API_KEY': 'ใส่คีย์_GEMINI_API_KEY_ที่นี่',
+    'GEMINI_API_KEY': 'AIzaSyALAUSTwtxVeWp8P9SMrsOAhjlpS_vJjRI',
     
     'GEMINI_MODEL': 'gemini-3.1-flash-lite',
     'EMAIL_BACKUP_RECIPIENT': 'pingly69@outlook.com',
