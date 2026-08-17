@@ -13,17 +13,17 @@ function setupProperties() {
     'SHEET_APPROVE_USERS': 'Approve_users',
     'SHEET_USERS_PROFILE': 'users_profile',
     'DRIVE_FOLDER_ID_BILLS': '1g6IiM2GUtwsI6vNJ2l0IMfgAjePGPGbs',
-    
+
     // ⚠️ ใส่ API Key ของคุณตรงนี้ (เอาเครื่องหมาย ... ออกแล้ววางคีย์)
-    'GEMINI_API_KEY': 'AIzaSyALAUSTwtxVeWp8P9SMrsOAhjlpS_vJjRI',
-    
+    'GEMINI_API_KEY': '...................',
+
     'GEMINI_MODEL': 'gemini-3.1-flash-lite',
-    'EMAIL_BACKUP_RECIPIENT': 'pingly69@outlook.com',
+    'EMAIL_BACKUP_RECIPIENT': '..............',
     'DAYS_TO_KEEP': '14'
   };
 
   // บันทึกค่าทั้งหมดลง Script Properties
   PropertiesService.getScriptProperties().setProperties(properties);
-  
+
   Logger.log("ตั้งค่า Script Properties สำเร็จแล้ว! คุณสามารถไปตรวจสอบที่ไอคอนฟันเฟืองได้เลยครับ");
 }
