@@ -1,5 +1,6 @@
 # ===== Credentials / Keys / Auth =====
 .clasp.json
+Setup.js
 *.key
 *.pem
 *.p12
