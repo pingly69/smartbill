@@ -471,7 +471,7 @@
       }
     }
 
-    async function apiCall(payload) {
+    async function apiCall(payload, retries = 1) {
       if (!WEB_APP_URL && window.location.href.includes("exec")) WEB_APP_URL = window.location.href.split('?')[0];
       if (!WEB_APP_URL && window.location.href.includes("dev")) WEB_APP_URL = window.location.href.split('?')[0];
 
@@ -479,14 +479,31 @@
         throw new Error("Web App URL not found.");
       }
 
-      const res = await fetch(WEB_APP_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
-        body: JSON.stringify(payload)
-      });
-      return await res.json();
+      try {
+        const res = await fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8',
+          },
+          body: JSON.stringify(payload)
+        });
+        const text = await res.text();
+        try {
+          return JSON.parse(text);
+        } catch (parseErr) {
+          if (retries > 0) {
+            await new Promise(r => setTimeout(r, 800));
+            return await apiCall(payload, retries - 1);
+          }
+          throw new Error("เซิร์ฟเวอร์ Google กำลังประมวลผล กรุณากดลองใหม่อีกครั้งครับ");
+        }
+      } catch (err) {
+        if (retries > 0) {
+          await new Promise(r => setTimeout(r, 800));
+          return await apiCall(payload, retries - 1);
+        }
+        throw err;
+      }
     }
 
     function handleProfileResponse(data) {
