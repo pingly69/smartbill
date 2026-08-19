@@ -11,7 +11,6 @@ function submitBill(payload) {
         const folder = DriveApp.getFolderById(folderId);
         const blob = Utilities.newBlob(Utilities.base64Decode(payload.base64Image), payload.mimeType, "Bill_" + new Date().getTime());
         const file = folder.createFile(blob);
-        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
         fileUrl = file.getUrl();
       }
     }

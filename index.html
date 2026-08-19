@@ -689,35 +689,40 @@
           formData: formData
         });
 
-        if (response.success) {
+        if (response && response.success) {
+          hideLoader();
+          submitBtn.innerText = "บันทึกสำเร็จ ✅";
+
+          // พยายามส่งข้อความเข้าแชท LINE ถ้าส่งไม่ได้ก็ไม่เป็นไร
           if (liff.isInClient()) {
-            await liff.sendMessages([{
-              type: "text",
-              text: `✅ บันทึกบิลสำเร็จ\nผู้ขาย: ${formData.sellerName}\nยอด: ${document.getElementById('totalAmount').value} บาท`
-            }]);
-          } else {
-            alert("บันทึกข้อมูลสำเร็จ");
+            try {
+              await liff.sendMessages([{
+                type: "text",
+                text: `✅ บันทึกบิลสำเร็จ\nผู้ขาย: ${formData.sellerName}\nยอด: ${document.getElementById('totalAmount').value} บาท`
+              }]);
+            } catch (lineErr) {
+              console.warn("LINE message could not be sent:", lineErr);
+            }
           }
 
-          setTimeout(() => {
-            if (liff.isInClient()) {
-              liff.closeWindow();
-            } else {
-              window.location.reload();
-            }
-          }, 2000);
+          if (liff.isInClient()) {
+            liff.closeWindow();
+          } else {
+            alert("บันทึกข้อมูลสำเร็จ");
+            window.location.reload();
+          }
 
         } else {
-          alert("เกิดข้อผิดพลาด: " + response.message);
+          hideLoader();
+          alert("เกิดข้อผิดพลาด: " + (response ? response.message : "ไม่สามารถบันทึกได้"));
           submitBtn.disabled = false;
           submitBtn.innerText = "ยืนยันและบันทึก";
         }
       } catch (err) {
+        hideLoader();
         alert("เกิดข้อผิดพลาดในการเชื่อมต่อ: " + err.message);
         submitBtn.disabled = false;
         submitBtn.innerText = "ยืนยันและบันทึก";
-      } finally {
-        hideLoader();
       }
     }
   </script>
