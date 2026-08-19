@@ -406,6 +406,7 @@
 
     let base64ImageString = "";
     let imageMimeType = "";
+    let globalApprovers = [];
 
     window.onload = function () {
       // ป้องกันไม่ให้เลือกวันที่เกินปัจจุบัน
@@ -431,7 +432,7 @@
         document.getElementById('lineEmail').value = email;
         document.getElementById('requesterName').value = profile.displayName;
 
-        // Fetch User Profile & Approvers
+        // Fetch User Profile & Approvers in 1 single request
         fetchInitialData(profile.userId);
 
       } catch (err) {
@@ -454,52 +455,27 @@
       try {
         showLoader('กำลังตรวจสอบสิทธิ์...');
 
-        // Use google.script.run if available (it is available in GAS HTML service)
-        if (typeof google !== 'undefined' && google.script && google.script.run) {
-          google.script.run
-            .withSuccessHandler((response) => {
-              handleProfileResponse(JSON.parse(response).data);
-              fetchApproversGAS();
-            })
-            .withFailureHandler((err) => {
-              alert("Error loading profile: " + err.message);
-              hideLoader();
-            })
-            .doPostMock({ action: 'getUserProfile', lineUid: userId });
-          // Wait, google.script.run calls specific functions.
-          // But the spec says "doPost router". If I have to use fetch:
-        }
-
-        if (WEB_APP_URL) {
-          const res = await fetch(WEB_APP_URL, {
-            method: 'POST',
-            body: JSON.stringify({ action: 'getUserProfile', lineUid: userId })
-          });
-          const json = await res.json();
-          handleProfileResponse(json.data);
-          await fetchApprovers();
+        const response = await apiCall({ action: 'getInitialData', lineUid: userId });
+        if (response && response.success && response.data) {
+          globalApprovers = response.data.approvers || [];
+          handleProfileResponse(response.data.profile);
         } else {
-          // Fallback if URL is missing, we use google.script.run to call a wrapper or the exact doPost
-          // Actually, let's inject google.script.run for GAS environment if URL fetch fails.
-          // Since we can't be 100% sure the URL is right, I'll stick to google.script.run calling doPost manually isn't standard,
-          // I will use fetch with an injected URL. 
+          console.warn("Could not get initial data:", response);
+          handleProfileResponse({ found: false });
         }
+        hideLoader();
       } catch (err) {
-        console.error(err);
-        alert("Failed to load initial data. Are you running this outside of GAS web app without the URL?");
+        console.error("fetchInitialData error:", err);
+        alert("เกิดข้อผิดพลาดในการโหลดข้อมูล: " + (err.message || err));
         hideLoader();
       }
     }
-
-    // Because I need WEB_APP_URL securely, I'll use google.script.run to route to a wrapper, but spec says "doPost() router เท่านั้น".
-    // If I use `fetch(window.location.href, ...)`, it works perfectly for GAS Web Apps.
 
     async function apiCall(payload) {
       if (!WEB_APP_URL && window.location.href.includes("exec")) WEB_APP_URL = window.location.href.split('?')[0];
       if (!WEB_APP_URL && window.location.href.includes("dev")) WEB_APP_URL = window.location.href.split('?')[0];
 
       if (!WEB_APP_URL) {
-        // Fallback if testing locally
         throw new Error("Web App URL not found.");
       }
 
@@ -536,30 +512,15 @@
       handleTypeChange();
     }
 
-    async function fetchApprovers() {
-      try {
-        const response = await apiCall({ action: 'getApprovers' });
-        const approvers = response.data || [];
-        const select = document.getElementById('approve_request');
-
-        // keep the placeholder
-        const placeholder = select.options[0];
-        select.innerHTML = '';
-        select.appendChild(placeholder);
-
-        approvers.forEach(appr => {
-          const opt = document.createElement('option');
-          opt.value = appr;
-          opt.innerText = appr;
-          select.appendChild(opt);
-        });
-
-        handleTypeChange(); // re-apply rules
-        hideLoader();
-      } catch (err) {
-        console.error("Error fetching approvers", err);
-        hideLoader();
-      }
+    function populateApproversDropdown() {
+      const select = document.getElementById('approve_request');
+      select.innerHTML = '<option value="">-- เลือกผู้อนุมัติ --</option>';
+      globalApprovers.forEach(appr => {
+        const opt = document.createElement('option');
+        opt.value = appr;
+        opt.innerText = appr;
+        select.appendChild(opt);
+      });
     }
 
     function handleTypeChange() {
@@ -574,15 +535,11 @@
         appSelect.style.pointerEvents = 'none';
         appSelect.style.backgroundColor = '#f0f0f0';
       } else {
-        // Type 1 rules (if approvers were already loaded, they should be restored... 
-        // to keep it simple, we just re-enable it. But since we overwrote innerHTML, we might need to fetch again.
-        // Let's store approvers globally to avoid re-fetching.)
+        // Type 1 rules
         appSelect.removeAttribute('readonly');
         appSelect.style.pointerEvents = 'auto';
         appSelect.style.backgroundColor = '#fff';
-        if (appSelect.options.length <= 1) {
-          fetchApprovers(); // refetch if options were cleared
-        }
+        populateApproversDropdown();
       }
     }
 

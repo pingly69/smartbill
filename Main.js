@@ -13,6 +13,11 @@ function doPost(e) {
     
     if (action === 'analyze') {
       result = analyzeInvoice(payload.base64, payload.type);
+    } else if (action === 'getInitialData') {
+      result = {
+        profile: getUserProfile(payload.lineUid),
+        approvers: getApproverList()
+      };
     } else if (action === 'getApprovers') {
       result = getApproverList();
     } else if (action === 'getUserProfile') {
